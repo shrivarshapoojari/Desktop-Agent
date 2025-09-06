@@ -626,7 +626,8 @@ class DesktopAgent {
 **Weather & News:**
 • "what's the weather" - Current weather (auto-detects location)
 • "weather in [city]" - Weather for specific location
-• "show news" - AI-curated news headlines
+• "show news" - AI-curated global news headlines
+• "india news" - Latest news from Indian sources
 • "tech news" - Technology news with analysis
 • "business news" - Business updates with insights
 • "search news about [topic]" - Intelligent news search

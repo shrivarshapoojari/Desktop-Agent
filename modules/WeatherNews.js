@@ -165,13 +165,14 @@ class WeatherNewsSystem {
     const userInterests = this.getUserInterestsString();
     const currentDate = new Date().toLocaleDateString();
 
-    return `Analyze these ${category} news articles from ${currentDate} and provide an intelligent, personalized summary:
+    return `Analyze these ${category} news articles from ${currentDate} gathered from global sources including Indian, UK, US, and international media:
 
 ARTICLES TO ANALYZE:
 ${articles.map(article => `
 ID: ${article.id}
 TITLE: ${article.title}
 DESCRIPTION: ${article.description}
+SOURCE: ${article.source || 'Unknown'}
 PUBLISHED: ${article.pubDate}
 ---`).join('\n')}
 
@@ -187,16 +188,17 @@ ANALYSIS REQUIREMENTS:
 4. INTELLIGENT CURATION: Select top 5 most relevant articles
 5. INSIGHT GENERATION: Provide context, connections between stories, and implications
 6. SENTIMENT ANALYSIS: Note tone and emotional context where relevant
+7. GLOBAL PERSPECTIVE: Consider diverse viewpoints from different regions
 
 OUTPUT FORMAT:
-🧠 **AI-Curated News Analysis**
+🧠 **AI-Curated Global News Analysis**
 
 **Key Insights:**
 [Provide 2-3 key insights about current events and trends]
 
 **Top Stories (Ranked by Relevance):**
 
-**1. [Title] (Relevance: X/10)**
+**1. [Title] (Relevance: X/10) - Source: [Source]**
 📝 **Analysis:** [AI insight about why this matters]
 🔗 **Impact:** [Who this affects and how]
 🎯 **Personal Relevance:** [Why this might interest the user]
@@ -207,10 +209,13 @@ OUTPUT FORMAT:
 **Trend Analysis:**
 [Identify patterns or emerging themes across the stories]
 
+**Global Perspective:**
+[Note different regional viewpoints or coverage angles]
+
 **Follow-up Suggestions:**
 [Suggest related topics or questions the user might want to explore]
 
-Make the analysis conversational, insightful, and tailored to the user's interests.`;
+Make the analysis conversational, insightful, and tailored to the user's interests while highlighting the diversity of sources.`;
   }
 
   /**
@@ -423,25 +428,100 @@ Keep it brief and helpful.`;
   }
 
   /**
-   * Fetch news data from free news service
+   * Fetch news data from multiple global sources
    * @param {string} category - News category
-   * @returns {Promise<Object>} News data
+   * @returns {Promise<Object>} News data from multiple sources
    */
   async fetchNewsData(category) {
-    return new Promise((resolve) => {
-      try {
-        // Use NewsAPI free tier or fallback to RSS feeds
-        const rssFeeds = {
-          general: 'https://feeds.bbci.co.uk/news/rss.xml',
-          technology: 'https://feeds.bbci.co.uk/news/technology/rss.xml',
-          business: 'https://feeds.bbci.co.uk/news/business/rss.xml',
-          science: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml',
-          health: 'https://feeds.bbci.co.uk/news/health/rss.xml'
-        };
+    try {
+      // Multiple RSS feeds from different regions and sources
+      const globalRssFeeds = {
+        general: [
+          'https://feeds.bbci.co.uk/news/rss.xml', // BBC World
+          'https://timesofindia.indiatimes.com/rssfeedstopstories.cms', // Times of India
+          'https://www.hindustantimes.com/feeds/rss/news/rssfeed.xml', // Hindustan Times
+          'http://rss.cnn.com/rss/edition.rss', // CNN International
+          'https://feeds.reuters.com/reuters/topNews', // Reuters
+          'http://feeds.feedburner.com/ndtvnews-top-stories', // NDTV
+          'https://www.thehindu.com/feeder/default.rss', // The Hindu
+        ],
+        technology: [
+          'https://feeds.bbci.co.uk/news/technology/rss.xml', // BBC Tech
+          'http://rss.cnn.com/rss/edition_technology.rss', // CNN Tech
+          'https://feeds.feedburner.com/oreilly/radar', // O'Reilly Tech
+          'https://timesofindia.indiatimes.com/rssfeeds/66949542.cms', // TOI Tech
+          'https://www.thehindu.com/sci-tech/technology/feeder/default.rss', // Hindu Tech
+          'https://feeds.feedburner.com/ndtvprofit-tech', // NDTV Tech
+        ],
+        business: [
+          'https://feeds.bbci.co.uk/news/business/rss.xml', // BBC Business
+          'http://rss.cnn.com/rss/money_latest.rss', // CNN Business
+          'https://feeds.reuters.com/reuters/businessNews', // Reuters Business
+          'https://economictimes.indiatimes.com/rssfeedstopstories.cms', // Economic Times
+          'https://www.business-standard.com/rss/home_page_top_stories.rss', // Business Standard
+          'https://feeds.feedburner.com/ndtvprofit-latest', // NDTV Profit
+        ],
+        science: [
+          'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml', // BBC Science
+          'https://www.thehindu.com/sci-tech/science/feeder/default.rss', // Hindu Science
+          'https://timesofindia.indiatimes.com/rssfeeds/3908999.cms', // TOI Science
+        ],
+        health: [
+          'https://feeds.bbci.co.uk/news/health/rss.xml', // BBC Health
+          'https://www.thehindu.com/sci-tech/health/feeder/default.rss', // Hindu Health
+          'https://timesofindia.indiatimes.com/rssfeeds/3908901.cms', // TOI Health
+        ],
+        india: [
+          'https://timesofindia.indiatimes.com/rssfeedstopstories.cms', // Times of India
+          'https://www.hindustantimes.com/feeds/rss/news/rssfeed.xml', // Hindustan Times
+          'http://feeds.feedburner.com/ndtvnews-top-stories', // NDTV
+          'https://www.thehindu.com/feeder/default.rss', // The Hindu
+          'https://indianexpress.com/section/india/feed/', // Indian Express
+          'https://feeds.feedburner.com/NDTV-LatestNews', // NDTV Latest
+        ]
+      };
 
-        const feedUrl = rssFeeds[category] || rssFeeds.general;
-        
-        https.get(feedUrl, (res) => {
+      const feedUrls = globalRssFeeds[category] || globalRssFeeds.general;
+      
+      // Fetch from multiple sources in parallel
+      const newsPromises = feedUrls.map(url => this.fetchSingleRSSFeed(url));
+      const newsResults = await Promise.allSettled(newsPromises);
+      
+      // Combine all successful results
+      let allArticles = [];
+      newsResults.forEach(result => {
+        if (result.status === 'fulfilled' && result.value) {
+          allArticles = allArticles.concat(result.value);
+        }
+      });
+
+      // Remove duplicates and sort by date
+      const uniqueArticles = this.removeDuplicateNews(allArticles);
+      const sortedArticles = uniqueArticles.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+      
+      console.log(`📰 Fetched ${sortedArticles.length} articles from ${feedUrls.length} sources for category: ${category}`);
+      
+      return sortedArticles.slice(0, 30); // Return top 30 most recent articles
+      
+    } catch (error) {
+      console.error("Multi-source news fetch error:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch single RSS feed
+   * @param {string} url - RSS feed URL
+   * @returns {Promise<Array>} Articles from the feed
+   */
+  async fetchSingleRSSFeed(url) {
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        resolve(null);
+      }, 10000); // 10 second timeout per feed
+
+      try {
+        https.get(url, (res) => {
           let data = '';
           
           res.on('data', (chunk) => {
@@ -449,22 +529,48 @@ Keep it brief and helpful.`;
           });
           
           res.on('end', () => {
+            clearTimeout(timeout);
             try {
               const newsData = this.parseRSSFeed(data);
               resolve(newsData);
             } catch (error) {
-              console.error("News parse error:", error);
+              console.error(`Parse error for ${url}:`, error.message);
               resolve(null);
             }
           });
         }).on('error', (error) => {
-          console.error("News request error:", error);
+          clearTimeout(timeout);
+          console.error(`Request error for ${url}:`, error.message);
           resolve(null);
         });
       } catch (error) {
-        console.error("News fetch error:", error);
+        clearTimeout(timeout);
+        console.error(`Fetch error for ${url}:`, error.message);
         resolve(null);
       }
+    });
+  }
+
+  /**
+   * Remove duplicate news articles
+   * @param {Array} articles - Array of articles
+   * @returns {Array} Unique articles
+   */
+  removeDuplicateNews(articles) {
+    const seen = new Set();
+    return articles.filter(article => {
+      // Create a simple fingerprint based on title
+      const fingerprint = article.title.toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .split(' ')
+        .slice(0, 5)
+        .join(' ');
+      
+      if (seen.has(fingerprint)) {
+        return false;
+      }
+      seen.add(fingerprint);
+      return true;
     });
   }
 
@@ -574,7 +680,7 @@ Keep it brief and helpful.`;
   }
 
   /**
-   * Parse RSS feed to extract news articles
+   * Parse RSS feed to extract news articles (Enhanced for multiple formats)
    * @param {string} rssData - Raw RSS XML data
    * @returns {Array} Parsed news articles
    */
@@ -582,29 +688,81 @@ Keep it brief and helpful.`;
     try {
       const articles = [];
       
-      // Simple XML parsing for RSS items
+      // Multiple regex patterns for different RSS formats
       const itemRegex = /<item[^>]*>([\s\S]*?)<\/item>/gi;
-      const titleRegex = /<title[^>]*><!\[CDATA\[(.*?)\]\]><\/title>/i;
-      const descRegex = /<description[^>]*><!\[CDATA\[(.*?)\]\]><\/description>/i;
-      const linkRegex = /<link[^>]*>(.*?)<\/link>/i;
+      const entryRegex = /<entry[^>]*>([\s\S]*?)<\/entry>/gi; // For Atom feeds
+      
+      // Title patterns
+      const titleRegex1 = /<title[^>]*><!\[CDATA\[(.*?)\]\]><\/title>/i;
+      const titleRegex2 = /<title[^>]*>(.*?)<\/title>/i;
+      
+      // Description patterns
+      const descRegex1 = /<description[^>]*><!\[CDATA\[(.*?)\]\]><\/description>/i;
+      const descRegex2 = /<description[^>]*>(.*?)<\/description>/i;
+      const summaryRegex = /<summary[^>]*><!\[CDATA\[(.*?)\]\]><\/summary>/i;
+      const contentRegex = /<content[^>]*><!\[CDATA\[(.*?)\]\]><\/content>/i;
+      
+      // Link patterns
+      const linkRegex1 = /<link[^>]*>(.*?)<\/link>/i;
+      const linkRegex2 = /<link[^>]*href=["'](.*?)["'][^>]*\/?>/i;
+      const guidRegex = /<guid[^>]*>(.*?)<\/guid>/i;
+      
+      // Date patterns
       const pubDateRegex = /<pubDate[^>]*>(.*?)<\/pubDate>/i;
+      const publishedRegex = /<published[^>]*>(.*?)<\/published>/i;
+      const updatedRegex = /<updated[^>]*>(.*?)<\/updated>/i;
 
+      // Function to extract and clean text
+      const extractText = (content, patterns) => {
+        for (const pattern of patterns) {
+          const match = pattern.exec(content);
+          if (match) {
+            return this.cleanHtmlText(match[1]);
+          }
+        }
+        return '';
+      };
+
+      // Parse RSS items
       let match;
       while ((match = itemRegex.exec(rssData)) !== null) {
         const itemContent = match[1];
         
-        const titleMatch = titleRegex.exec(itemContent);
-        const descMatch = descRegex.exec(itemContent);
-        const linkMatch = linkRegex.exec(itemContent);
-        const dateMatch = pubDateRegex.exec(itemContent);
+        const title = extractText(itemContent, [titleRegex1, titleRegex2]);
+        const description = extractText(itemContent, [descRegex1, descRegex2, summaryRegex, contentRegex]);
+        const link = extractText(itemContent, [linkRegex2, linkRegex1, guidRegex]);
+        const pubDate = extractText(itemContent, [pubDateRegex, publishedRegex, updatedRegex]);
 
-        if (titleMatch) {
+        if (title && title.trim()) {
           articles.push({
-            title: titleMatch[1].trim(),
-            description: descMatch ? descMatch[1].trim() : '',
-            link: linkMatch ? linkMatch[1].trim() : '',
-            pubDate: dateMatch ? dateMatch[1].trim() : ''
+            title: title.trim(),
+            description: description.trim(),
+            link: link.trim(),
+            pubDate: pubDate.trim() || new Date().toISOString(),
+            source: this.extractSourceFromLink(link)
           });
+        }
+      }
+
+      // Parse Atom entries if no RSS items found
+      if (articles.length === 0) {
+        while ((match = entryRegex.exec(rssData)) !== null) {
+          const entryContent = match[1];
+          
+          const title = extractText(entryContent, [titleRegex1, titleRegex2]);
+          const description = extractText(entryContent, [summaryRegex, contentRegex, descRegex1, descRegex2]);
+          const link = extractText(entryContent, [linkRegex2, linkRegex1]);
+          const pubDate = extractText(entryContent, [updatedRegex, publishedRegex, pubDateRegex]);
+
+          if (title && title.trim()) {
+            articles.push({
+              title: title.trim(),
+              description: description.trim(),
+              link: link.trim(),
+              pubDate: pubDate.trim() || new Date().toISOString(),
+              source: this.extractSourceFromLink(link)
+            });
+          }
         }
       }
 
@@ -612,6 +770,63 @@ Keep it brief and helpful.`;
     } catch (error) {
       console.error("RSS parsing error:", error);
       return [];
+    }
+  }
+
+  /**
+   * Clean HTML text and decode entities
+   * @param {string} text - Raw HTML text
+   * @returns {string} Cleaned text
+   */
+  cleanHtmlText(text) {
+    if (!text) return '';
+    
+    return text
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Extract source name from article link
+   * @param {string} link - Article link
+   * @returns {string} Source name
+   */
+  extractSourceFromLink(link) {
+    try {
+      const url = new URL(link);
+      const hostname = url.hostname.toLowerCase();
+      
+      const sourceMap = {
+        'timesofindia.indiatimes.com': 'Times of India',
+        'hindustantimes.com': 'Hindustan Times',
+        'thehindu.com': 'The Hindu',
+        'ndtv.com': 'NDTV',
+        'indianexpress.com': 'Indian Express',
+        'economictimes.indiatimes.com': 'Economic Times',
+        'business-standard.com': 'Business Standard',
+        'bbc.co.uk': 'BBC',
+        'bbc.com': 'BBC',
+        'cnn.com': 'CNN',
+        'reuters.com': 'Reuters',
+        'feedburner.com': 'Google News'
+      };
+
+      for (const [domain, name] of Object.entries(sourceMap)) {
+        if (hostname.includes(domain)) {
+          return name;
+        }
+      }
+
+      return hostname.replace('www.', '').split('.')[0].toUpperCase();
+    } catch (error) {
+      return 'Unknown Source';
     }
   }
 

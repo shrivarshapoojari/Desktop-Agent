@@ -65,7 +65,7 @@ class CommandParser {
     - info_type: "cpu", "memory", "disk", "processes", "network", "system", "battery", "temp" for system information
     - action_type: "focus_mode", "break_time", "coding_setup", "study_mode", "gaming_mode", "meeting_mode", "cleanup", "shutdown_apps", "work_setup", "social_mode"
     - location: city/location for weather (optional, will auto-detect if not provided)
-    - category: news category - "general", "technology", "business", "science", "health"
+    - category: news category - "general", "technology", "business", "science", "health", "india"
     - topic: topic for news discussion
     - activity: activity type for weather advice - "running", "cycling", "picnic", etc.
     - message: for casual conversation responses
@@ -99,6 +99,8 @@ class CommandParser {
     "recommend news for me" -> {"action": "news_recommendations"}
     "how is the news mood today" -> {"action": "news_sentiment"}
     "tech news" -> {"action": "news", "category": "technology"}
+    "india news" -> {"action": "news", "category": "india"}
+    "business news from india" -> {"action": "news", "category": "business"}
     "daily briefing" -> {"action": "daily_briefing"}
     "weather for running" -> {"action": "weather_activity", "activity": "running"}
     "focus mode" -> {"action": "quick_action", "action_type": "focus_mode"}
