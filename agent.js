@@ -14,24 +14,37 @@ async function parseCommand(command) {
         { 
           role: "system", 
           content: `You are a desktop AI agent. Parse user commands and respond with JSON containing:
-          - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "unknown"
+          - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "unknown"
           - task: description for reminders
           - time: time for reminders (format: "HH:MM" or "today at HH:MM")
-          - app: application name for opening apps (calculator, notepad, paint, browser, etc.)
+          - app: application name for DESKTOP apps only (calculator, notepad, paint, browser, etc.)
           - task_id: ID for deleting specific tasks
           - query: search term for web searches
           - search_type: "google", "youtube", "wikipedia", "github", "stackoverflow", "images", "news", "maps" (default: "google")
+          - website: website shortcut or URL for direct visits
+          
+          IMPORTANT DISTINCTION:
+          - Use "open_app" ONLY for desktop applications like calculator, notepad, paint, browser
+          - Use "visit_website" for websites like gfg, leetcode, youtube, netflix, github, amazon, etc.
+          - Use "search_web" when user wants to search for something
           
           Examples:
-          "remind me to call mom at 3pm" -> {"action": "add_reminder", "task": "call mom", "time": "15:00"}
-          "search for javascript tutorials" -> {"action": "search_web", "query": "javascript tutorials", "search_type": "google"}
+          "open calculator" -> {"action": "open_app", "app": "calculator"}
+          "open notepad" -> {"action": "open_app", "app": "notepad"}
+          "open browser" -> {"action": "open_app", "app": "browser"}
+          
+          "open gfg" -> {"action": "visit_website", "website": "gfg"}
+          "visit leetcode" -> {"action": "visit_website", "website": "leetcode"}
+          "open leetcode" -> {"action": "visit_website", "website": "leetcode"}
+          "go to github" -> {"action": "visit_website", "website": "github"}
+          "open netflix" -> {"action": "visit_website", "website": "netflix"}
+          "visit amazon" -> {"action": "visit_website", "website": "amazon"}
+          "open youtube" -> {"action": "visit_website", "website": "youtube"}
+          
+          "search for javascript tutorials" -> {"action": "search_web", "query": "javascript tutorials"}
           "youtube javascript tutorials" -> {"action": "search_web", "query": "javascript tutorials", "search_type": "youtube"}
-          "wikipedia albert einstein" -> {"action": "search_web", "query": "albert einstein", "search_type": "wikipedia"}
-          "github react components" -> {"action": "search_web", "query": "react components", "search_type": "github"}
-          "stackoverflow error handling" -> {"action": "search_web", "query": "error handling", "search_type": "stackoverflow"}
-          "search images of cats" -> {"action": "search_web", "query": "cats", "search_type": "images"}
-          "news about AI" -> {"action": "search_web", "query": "AI", "search_type": "news"}
-          "maps to central park" -> {"action": "search_web", "query": "central park", "search_type": "maps"}
+          
+          "remind me to call mom at 3pm" -> {"action": "add_reminder", "task": "call mom", "time": "15:00"}
           "clear all tasks" -> {"action": "clear_tasks"}` 
         },
         { role: "user", content: command }
@@ -82,7 +95,7 @@ export async function handleCommand(command, callback) {
       if (data.app) {
         const appName = data.app.toLowerCase();
         
-        // Reliable Windows built-in apps
+        // ONLY reliable Windows built-in desktop apps
         const builtInApps = {
           'calculator': 'calc',
           'notepad': 'notepad',
@@ -98,7 +111,7 @@ export async function handleCommand(command, callback) {
           'settings': 'ms-settings:'
         };
         
-        // Try built-in apps first
+        // Only handle known desktop apps
         if (builtInApps[appName]) {
           exec(`start ${builtInApps[appName]}`, (error) => {
             if (!error) {
@@ -107,58 +120,10 @@ export async function handleCommand(command, callback) {
               callback(`❌ Could not open ${data.app}. Try: calculator, notepad, paint, file explorer, settings`);
             }
           });
-          return;
+        } else {
+          // If it's not a known desktop app, suggest it might be a website
+          callback(`❌ "${data.app}" is not a recognized desktop app.\n\n🖥️ **Desktop Apps:** calculator, notepad, paint, browser, file explorer\n🌐 **For websites, try:** "visit ${data.app}" or "go to ${data.app}"`);
         }
-        
-        // For third-party apps, try to find them
-        if (appName === 'whatsapp') {
-          // Multiple ways to try WhatsApp
-          exec(`powershell -command "Start-Process 'WhatsApp'"`, (error1) => {
-            if (!error1) {
-              callback(`🚀 Opening WhatsApp...`);
-            } else {
-              exec(`start whatsapp:`, (error2) => {
-                if (!error2) {
-                  callback(`🚀 Opening WhatsApp...`);
-                } else {
-                  callback(`❌ WhatsApp not found. Please install WhatsApp from Microsoft Store or visit web.whatsapp.com in your browser.`);
-                }
-              });
-            }
-          });
-          return;
-        }
-        
-        if (appName === 'chrome') {
-          exec(`start chrome`, (error) => {
-            if (!error) {
-              callback(`🚀 Opening Chrome...`);
-            } else {
-              callback(`❌ Chrome not found. Try 'open browser' for Edge instead.`);
-            }
-          });
-          return;
-        }
-        
-        if (appName === 'spotify') {
-          exec(`start spotify:`, (error) => {
-            if (!error) {
-              callback(`🚀 Opening Spotify...`);
-            } else {
-              callback(`❌ Spotify not found. Please install Spotify from Microsoft Store.`);
-            }
-          });
-          return;
-        }
-        
-        // Generic fallback for any other app
-        exec(`start ${data.app}`, (error) => {
-          if (!error) {
-            callback(`🚀 Opening ${data.app}...`);
-          } else {
-            callback(`❌ Could not open ${data.app}.\n\n✅ **Built-in apps that always work:**\n🧮 calculator, 📝 notepad, 🎨 paint\n🌐 browser, 📁 file explorer, ⚙️ settings\n\n💡 **For other apps:** Make sure they're installed first!`);
-          }
-        });
       } else {
         callback("❌ Please specify which app to open.");
       }
@@ -273,8 +238,144 @@ export async function handleCommand(command, callback) {
       } else {
         callback(`❌ Please specify what you want to search for.\n\n🔍 **Search Examples:**\n• "search for python tutorials"\n• "youtube react course"\n• "github awesome lists"\n• "wikipedia artificial intelligence"\n• "stackoverflow javascript error"\n• "images of mountains"\n• "news about technology"`);
       }
+    } else if (data.action === "visit_website") {
+      if (data.website) {
+        const site = data.website.toLowerCase();
+        
+        // Popular website shortcuts
+        const websites = {
+          // Coding & Development
+          'gfg': 'https://www.geeksforgeeks.org',
+          'geeksforgeeks': 'https://www.geeksforgeeks.org',
+          'leetcode': 'https://leetcode.com',
+          'hackerrank': 'https://www.hackerrank.com',
+          'codechef': 'https://www.codechef.com',
+          'codeforces': 'https://codeforces.com',
+          'github': 'https://github.com',
+          'stackoverflow': 'https://stackoverflow.com',
+          'w3schools': 'https://www.w3schools.com',
+          'mdn': 'https://developer.mozilla.org',
+          'devto': 'https://dev.to',
+          
+          // Entertainment & Social
+          'youtube': 'https://www.youtube.com',
+          'netflix': 'https://www.netflix.com',
+          'instagram': 'https://www.instagram.com',
+          'facebook': 'https://www.facebook.com',
+          'twitter': 'https://www.twitter.com',
+          'reddit': 'https://www.reddit.com',
+          'linkedin': 'https://www.linkedin.com',
+          'discord': 'https://discord.com',
+          'spotify': 'https://open.spotify.com',
+          
+          // Shopping & Services
+          'amazon': 'https://www.amazon.com',
+          'flipkart': 'https://www.flipkart.com',
+          'myntra': 'https://www.myntra.com',
+          'swiggy': 'https://www.swiggy.com',
+          'zomato': 'https://www.zomato.com',
+          'uber': 'https://www.uber.com',
+          'ola': 'https://www.olacabs.com',
+          
+          // News & Information
+          'wikipedia': 'https://www.wikipedia.org',
+          'google': 'https://www.google.com',
+          'gmail': 'https://mail.google.com',
+          'drive': 'https://drive.google.com',
+          'docs': 'https://docs.google.com',
+          'sheets': 'https://sheets.google.com',
+          'calendar': 'https://calendar.google.com',
+          
+          // Education
+          'coursera': 'https://www.coursera.org',
+          'udemy': 'https://www.udemy.com',
+          'edx': 'https://www.edx.org',
+          'khan': 'https://www.khanacademy.org',
+          'duolingo': 'https://www.duolingo.com',
+          
+          // Tools & Utilities
+          'canva': 'https://www.canva.com',
+          'figma': 'https://www.figma.com',
+          'notion': 'https://www.notion.so',
+          'trello': 'https://trello.com',
+          'slack': 'https://slack.com'
+        };
+        
+        // Check if it's a known website shortcut
+        let targetUrl = websites[site];
+        
+        // If not found, check if it's already a URL
+        if (!targetUrl) {
+          if (site.startsWith('http://') || site.startsWith('https://')) {
+            targetUrl = data.website;
+          } else if (site.includes('.')) {
+            // Assume it's a domain name
+            targetUrl = `https://${data.website}`;
+          } else {
+            // Unknown shortcut, provide suggestions
+            callback(`❌ Unknown website "${data.website}". Try these shortcuts:\n\n💻 **Coding:** gfg, leetcode, github, stackoverflow\n🎥 **Entertainment:** youtube, netflix, spotify\n🛒 **Shopping:** amazon, flipkart, myntra\n📚 **Learning:** coursera, udemy, khan\n🔧 **Tools:** gmail, drive, notion, figma\n\nOr use full URL like: "visit https://example.com"`);
+            return;
+          }
+        }
+        
+        // Enhanced browser detection for website visits
+        function tryBrowserForWebsite(browserCmd, browserName) {
+          exec(`${browserCmd} "${targetUrl}"`, (error) => {
+            if (!error) {
+              const siteName = Object.keys(websites).find(key => websites[key] === targetUrl) || data.website;
+              callback(`🌐 Opening ${siteName.toUpperCase()} in ${browserName}...`);
+            } else {
+              return false;
+            }
+          });
+          return true;
+        }
+        
+        // Try multiple browsers for better success rate
+        const browsers = [
+          { cmd: 'start chrome', name: 'Chrome' },
+          { cmd: 'start firefox', name: 'Firefox' },
+          { cmd: 'start msedge', name: 'Edge' },
+          { cmd: 'start brave', name: 'Brave' }
+        ];
+        
+        let browserIndex = 0;
+        let success = false;
+        
+        function tryNextBrowserForSite() {
+          if (browserIndex >= browsers.length) {
+            // Final fallback to default browser
+            exec(`start "${targetUrl}"`, (error) => {
+              if (!error) {
+                const siteName = Object.keys(websites).find(key => websites[key] === targetUrl) || data.website;
+                callback(`🌐 Opening ${siteName.toUpperCase()} in your default browser...`);
+              } else {
+                callback(`❌ Could not open browser to visit ${data.website}.\n\n🔗 URL: ${targetUrl}\n\n💡 Try installing Chrome, Firefox, or Edge.`);
+              }
+            });
+            return;
+          }
+          
+          const browser = browsers[browserIndex];
+          exec(`${browser.cmd} "${targetUrl}"`, (error) => {
+            if (!error) {
+              const siteName = Object.keys(websites).find(key => websites[key] === targetUrl) || data.website;
+              callback(`🌐 Opening ${siteName.toUpperCase()} in ${browser.name}...`);
+              success = true;
+            } else {
+              browserIndex++;
+              setTimeout(tryNextBrowserForSite, 100);
+            }
+          });
+        }
+        
+        tryNextBrowserForSite();
+        
+      } else {
+        callback(`❌ Please specify which website to visit.\n\n🌐 **Popular Sites:**\n• "open gfg" / "visit leetcode"\n• "go to youtube" / "open netflix"\n• "visit amazon" / "open gmail"\n• "go to github" / "open stackoverflow"\n\nOr use: "visit https://example.com"`);
+      }
     } else {
-      callback("🤔 I'm not sure how to handle that command yet. Try:\n\n📝 **Tasks:**\n• 'remind me to [task] at [time]'\n• 'show my tasks' / 'clear all tasks'\n\n🔍 **Search:**\n• 'search for [anything]'\n• 'youtube [topic]' / 'wikipedia [topic]'\n• 'github [project]' / 'stackoverflow [problem]'\n• 'images of [subject]' / 'news about [topic]'\n\n🚀 **Apps:**\n• 'open calculator' / 'open notepad'\n• 'open browser' / 'open file explorer'");
+      callback("🤔 I'm not sure how to handle that command yet. Try:\n\n📝 **Tasks:**\n• 'remind me to [task] at [time]'\n• 'show my tasks' / 'clear all tasks'\n\n🔍 **Search:**\n• 'search for [anything]'\n• 'youtube [topic]' / 'wikipedia [topic]'\n• 'github [project]' / 'stackoverflow [problem]'\n\n🌐 **Visit Websites:**\n• 'open gfg' / 'visit leetcode'\n• 'go to youtube' / 'open netflix'\n• 'visit amazon' / 'open gmail'\n\n🚀 **Apps:**\n• 'open calculator' / 'open notepad'");
     }
   } catch (err) {
     console.error("Command handling error:", err);
