@@ -1,10 +1,485 @@
 import Groq from "groq-sdk";
 import { addTask, getTasks, deleteTask, clearTasks } from "./db.js";
 import { exec } from "child_process";
+import { promisify } from "util";
+import os from "os";
 import dotenv from "dotenv";
+
+const execAsync = promisify(exec);
 
 dotenv.config();
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// System monitoring functions
+async function getSystemInfo(infoType) {
+  try {
+    switch (infoType) {
+      case 'cpu':
+        const cpus = os.cpus();
+        const cpuUsage = await getCPUUsage();
+        return `💻 **CPU Information:**\n• Model: ${cpus[0].model}\n• Cores: ${cpus.length}\n• Current Usage: ${cpuUsage}%\n• Architecture: ${os.arch()}`;
+        
+      case 'memory':
+        const totalMem = Math.round(os.totalmem() / 1024 / 1024 / 1024 * 100) / 100;
+        const freeMem = Math.round(os.freemem() / 1024 / 1024 / 1024 * 100) / 100;
+        const usedMem = totalMem - freeMem;
+        const memUsage = Math.round((usedMem / totalMem) * 100);
+        return `🧠 **Memory Information:**\n• Total RAM: ${totalMem} GB\n• Used: ${usedMem} GB (${memUsage}%)\n• Free: ${freeMem} GB\n• Available: ${Math.round(os.freemem() / 1024 / 1024)} MB`;
+        
+      case 'disk':
+        const diskInfo = await getDiskSpace();
+        return diskInfo;
+        
+      case 'processes':
+        const processes = await getRunningProcesses();
+        return processes;
+        
+      case 'network':
+        const networkInfo = getNetworkInfo();
+        return networkInfo;
+        
+      case 'system':
+        const uptime = Math.floor(os.uptime() / 3600);
+        const uptimeMin = Math.floor((os.uptime() % 3600) / 60);
+        return `🖥️ **System Information:**\n• OS: ${os.type()} ${os.release()}\n• Platform: ${os.platform()}\n• Hostname: ${os.hostname()}\n• Uptime: ${uptime}h ${uptimeMin}m\n• User: ${os.userInfo().username}`;
+        
+      case 'battery':
+        const batteryInfo = await getBatteryInfo();
+        return batteryInfo;
+        
+      case 'temp':
+        return `🌡️ **Temperature monitoring requires additional sensors.**\nTry: "check cpu usage" or "show system status"`;
+        
+      default:
+        return `❌ Unknown info type. Try: cpu, memory, disk, processes, network, system, battery`;
+    }
+  } catch (error) {
+    return `❌ Error getting system info: ${error.message}`;
+  }
+}
+
+async function getCPUUsage() {
+  try {
+    const { stdout } = await execAsync('wmic cpu get loadpercentage /value');
+    const match = stdout.match(/LoadPercentage=(\d+)/);
+    return match ? match[1] : 'N/A';
+  } catch (error) {
+    return 'N/A';
+  }
+}
+
+async function getDiskSpace() {
+  try {
+    const { stdout } = await execAsync('wmic logicaldisk get size,freespace,caption');
+    const lines = stdout.split('\n').filter(line => line.trim() && line.includes(':'));
+    let diskInfo = '💾 **Disk Space:**\n';
+    
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 3) {
+        const drive = parts[0];
+        const freeSpace = Math.round(parseInt(parts[1]) / 1024 / 1024 / 1024 * 100) / 100;
+        const totalSpace = Math.round(parseInt(parts[2]) / 1024 / 1024 / 1024 * 100) / 100;
+        const usedSpace = totalSpace - freeSpace;
+        const usage = Math.round((usedSpace / totalSpace) * 100);
+        diskInfo += `• Drive ${drive} ${totalSpace} GB (${usage}% used, ${freeSpace} GB free)\n`;
+      }
+    }
+    return diskInfo;
+  } catch (error) {
+    return '💾 **Disk Space:** Unable to retrieve disk information';
+  }
+}
+
+async function getRunningProcesses() {
+  try {
+    const { stdout } = await execAsync('tasklist /fo csv | findstr /v "Image Name" | head -10');
+    const lines = stdout.split('\n').filter(line => line.trim());
+    let processes = '⚡ **Top Running Processes:**\n';
+    
+    for (let i = 0; i < Math.min(lines.length, 8); i++) {
+      const line = lines[i];
+      if (line.includes(',')) {
+        const processName = line.split(',')[0].replace(/"/g, '');
+        const pid = line.split(',')[1].replace(/"/g, '');
+        processes += `• ${processName} (PID: ${pid})\n`;
+      }
+    }
+    return processes;
+  } catch (error) {
+    return '⚡ **Processes:** Unable to retrieve process information';
+  }
+}
+
+function getNetworkInfo() {
+  const networkInterfaces = os.networkInterfaces();
+  let networkInfo = '🌐 **Network Information:**\n';
+  
+  for (const [name, interfaces] of Object.entries(networkInterfaces)) {
+    for (const iface of interfaces) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        networkInfo += `• ${name}: ${iface.address}\n`;
+      }
+    }
+  }
+  return networkInfo;
+}
+
+async function getBatteryInfo() {
+  try {
+    const { stdout } = await execAsync('wmic path Win32_Battery get BatteryStatus,EstimatedChargeRemaining');
+    if (stdout.includes('EstimatedChargeRemaining')) {
+      const lines = stdout.split('\n').filter(line => line.trim() && !line.includes('EstimatedChargeRemaining'));
+      if (lines.length > 0) {
+        const parts = lines[0].trim().split(/\s+/);
+        const charge = parts[1] || 'N/A';
+        return `🔋 **Battery Information:**\n• Charge Remaining: ${charge}%\n• Status: Connected`;
+      }
+    }
+    return '🔋 **Battery Information:**\n• Status: No battery detected (Desktop PC)';
+  } catch (error) {
+    return '🔋 **Battery Information:**\n• Status: Unable to retrieve battery info';
+  }
+}
+
+// Quick Action functions
+async function executeQuickAction(actionType) {
+  try {
+    switch (actionType) {
+      case 'focus_mode':
+        return await setupFocusMode();
+        
+      case 'break_time':
+        return await setupBreakTime();
+        
+      case 'coding_setup':
+        return await setupCodingEnvironment();
+        
+      case 'study_mode':
+        return await setupStudyMode();
+        
+      case 'gaming_mode':
+        return await setupGamingMode();
+        
+      case 'meeting_mode':
+        return await setupMeetingMode();
+        
+      case 'work_setup':
+        return await setupWorkEnvironment();
+        
+      case 'social_mode':
+        return await setupSocialMode();
+        
+      case 'cleanup':
+        return await performCleanup();
+        
+      case 'shutdown_apps':
+        return await shutdownApps();
+        
+      default:
+        return `❌ Unknown quick action. Available actions:\n🎯 focus_mode, ☕ break_time, 💻 coding_setup\n📚 study_mode, 🎮 gaming_mode, 💼 meeting_mode\n🧹 cleanup, 🔌 shutdown_apps`;
+    }
+  } catch (error) {
+    return `❌ Error executing quick action: ${error.message}`;
+  }
+}
+
+async function setupFocusMode() {
+  const actions = [];
+  
+  // Close distracting apps
+  const distractingApps = ['spotify', 'discord', 'whatsapp', 'facebook', 'instagram', 'youtube'];
+  for (const app of distractingApps) {
+    try {
+      await execAsync(`taskkill /f /im ${app}.exe 2>nul`);
+      actions.push(`Closed ${app}`);
+    } catch (error) {
+      // App not running, continue
+    }
+  }
+  
+  // Open productivity apps
+  try {
+    exec('start notepad');
+    actions.push('Opened Notepad');
+    
+    setTimeout(() => exec('start calc'), 500);
+    actions.push('Opened Calculator');
+    
+    // Open a focus website
+    setTimeout(() => exec('start https://focus-to-do.com'), 1000);
+    actions.push('Opened Focus Timer');
+    
+  } catch (error) {
+    actions.push('Some apps failed to open');
+  }
+  
+  return `🎯 **Focus Mode Activated!**\n\n✅ Actions completed:\n${actions.map(a => `• ${a}`).join('\n')}\n\n💡 Distracting apps closed, productivity tools opened!\n⏰ Consider using a 25-minute focus session.`;
+}
+
+async function setupBreakTime() {
+  const actions = [];
+  
+  try {
+    // Open relaxing content
+    exec('start https://open.spotify.com');
+    actions.push('Opened Spotify for music');
+    
+    setTimeout(() => exec('start https://www.youtube.com/results?search_query=relaxing+music'), 1000);
+    actions.push('Opened relaxing music on YouTube');
+    
+    // Close work apps (optional)
+    const workApps = ['code', 'devenv', 'notepad++'];
+    for (const app of workApps) {
+      try {
+        await execAsync(`taskkill /f /im ${app}.exe 2>nul`);
+        actions.push(`Closed ${app}`);
+      } catch (error) {
+        // App not running, continue
+      }
+    }
+    
+  } catch (error) {
+    actions.push('Some actions failed');
+  }
+  
+  return `☕ **Break Time Activated!**\n\n✅ Actions completed:\n${actions.map(a => `• ${a}`).join('\n')}\n\n🎵 Enjoy your break! Consider:\n• Stretching for 2-3 minutes\n• Getting some water\n• Looking away from the screen`;
+}
+
+async function setupCodingEnvironment() {
+  const actions = [];
+  
+  try {
+    // Open coding tools
+    exec('start code'); // VS Code
+    actions.push('Opened VS Code');
+    
+    setTimeout(() => exec('start cmd'), 500);
+    actions.push('Opened Command Prompt');
+    
+    setTimeout(() => exec('start https://stackoverflow.com'), 1000);
+    actions.push('Opened Stack Overflow');
+    
+    setTimeout(() => exec('start https://github.com'), 1500);
+    actions.push('Opened GitHub');
+    
+    setTimeout(() => exec('start https://developer.mozilla.org'), 2000);
+    actions.push('Opened MDN Docs');
+    
+  } catch (error) {
+    actions.push('Some tools failed to open');
+  }
+  
+  return `💻 **Coding Setup Complete!**\n\n✅ Development environment ready:\n${actions.map(a => `• ${a}`).join('\n')}\n\n🚀 Happy coding! All your dev tools are ready.`;
+}
+
+async function setupStudyMode() {
+  const actions = [];
+  
+  try {
+    // Close distracting apps
+    const distractingApps = ['spotify', 'discord', 'whatsapp'];
+    for (const app of distractingApps) {
+      try {
+        await execAsync(`taskkill /f /im ${app}.exe 2>nul`);
+        actions.push(`Closed ${app}`);
+      } catch (error) {
+        // Continue
+      }
+    }
+    
+    // Open study tools
+    exec('start notepad');
+    actions.push('Opened Notepad for notes');
+    
+    setTimeout(() => exec('start calc'), 500);
+    actions.push('Opened Calculator');
+    
+    setTimeout(() => exec('start https://www.khanacademy.org'), 1000);
+    actions.push('Opened Khan Academy');
+    
+    setTimeout(() => exec('start https://en.wikipedia.org'), 1500);
+    actions.push('Opened Wikipedia');
+    
+  } catch (error) {
+    actions.push('Some actions failed');
+  }
+  
+  return `📚 **Study Mode Activated!**\n\n✅ Study environment ready:\n${actions.map(a => `• ${a}`).join('\n')}\n\n🎓 Focus on learning! Distractions minimized.`;
+}
+
+async function setupGamingMode() {
+  const actions = [];
+  
+  try {
+    // Close work apps
+    const workApps = ['outlook', 'teams', 'slack'];
+    for (const app of workApps) {
+      try {
+        await execAsync(`taskkill /f /im ${app}.exe 2>nul`);
+        actions.push(`Closed ${app}`);
+      } catch (error) {
+        // Continue
+      }
+    }
+    
+    // Open gaming platforms
+    setTimeout(() => exec('start https://store.steampowered.com'), 500);
+    actions.push('Opened Steam Store');
+    
+    setTimeout(() => exec('start https://discord.com'), 1000);
+    actions.push('Opened Discord');
+    
+    setTimeout(() => exec('start https://www.twitch.tv'), 1500);
+    actions.push('Opened Twitch');
+    
+  } catch (error) {
+    actions.push('Some actions failed');
+  }
+  
+  return `🎮 **Gaming Mode Ready!**\n\n✅ Gaming setup complete:\n${actions.map(a => `• ${a}`).join('\n')}\n\n🕹️ Have fun gaming! Work apps closed for distraction-free play.`;
+}
+
+async function setupMeetingMode() {
+  const actions = [];
+  
+  try {
+    // Close noisy apps
+    const noisyApps = ['spotify', 'discord'];
+    for (const app of noisyApps) {
+      try {
+        await execAsync(`taskkill /f /im ${app}.exe 2>nul`);
+        actions.push(`Closed ${app}`);
+      } catch (error) {
+        // Continue
+      }
+    }
+    
+    // Open meeting tools
+    setTimeout(() => exec('start https://teams.microsoft.com'), 500);
+    actions.push('Opened Microsoft Teams');
+    
+    setTimeout(() => exec('start https://zoom.us'), 1000);
+    actions.push('Opened Zoom');
+    
+    setTimeout(() => exec('start notepad'), 1500);
+    actions.push('Opened Notepad for meeting notes');
+    
+  } catch (error) {
+    actions.push('Some actions failed');
+  }
+  
+  return `💼 **Meeting Mode Ready!**\n\n✅ Meeting setup complete:\n${actions.map(a => `• ${a}`).join('\n')}\n\n📞 Ready for your meeting! Distracting apps closed.`;
+}
+
+async function setupWorkEnvironment() {
+  const actions = [];
+  
+  try {
+    // Open work tools
+    setTimeout(() => exec('start https://mail.google.com'), 500);
+    actions.push('Opened Gmail');
+    
+    setTimeout(() => exec('start https://calendar.google.com'), 1000);
+    actions.push('Opened Google Calendar');
+    
+    setTimeout(() => exec('start https://drive.google.com'), 1500);
+    actions.push('Opened Google Drive');
+    
+    setTimeout(() => exec('start notepad'), 2000);
+    actions.push('Opened Notepad');
+    
+    setTimeout(() => exec('start calc'), 2500);
+    actions.push('Opened Calculator');
+    
+  } catch (error) {
+    actions.push('Some tools failed to open');
+  }
+  
+  return `💼 **Work Setup Complete!**\n\n✅ Work environment ready:\n${actions.map(a => `• ${a}`).join('\n')}\n\n📊 All work tools are ready. Have a productive day!`;
+}
+
+async function setupSocialMode() {
+  const actions = [];
+  
+  try {
+    // Open social platforms
+    setTimeout(() => exec('start https://www.instagram.com'), 500);
+    actions.push('Opened Instagram');
+    
+    setTimeout(() => exec('start https://www.twitter.com'), 1000);
+    actions.push('Opened Twitter');
+    
+    setTimeout(() => exec('start https://www.facebook.com'), 1500);
+    actions.push('Opened Facebook');
+    
+    setTimeout(() => exec('start https://discord.com'), 2000);
+    actions.push('Opened Discord');
+    
+    setTimeout(() => exec('start https://open.spotify.com'), 2500);
+    actions.push('Opened Spotify');
+    
+  } catch (error) {
+    actions.push('Some platforms failed to open');
+  }
+  
+  return `🌟 **Social Mode Activated!**\n\n✅ Social platforms ready:\n${actions.map(a => `• ${a}`).join('\n')}\n\n📱 Stay connected with friends and enjoy social time!`;
+}
+
+async function performCleanup() {
+  const actions = [];
+  
+  try {
+    // Clear temp files
+    await execAsync('del /q %temp%\\* 2>nul');
+    actions.push('Cleared temporary files');
+    
+    // Empty recycle bin (requires confirmation)
+    actions.push('Recycle bin cleanup available via Windows');
+    
+    // Close unnecessary processes (be careful)
+    const unnecessaryApps = ['notepad'];
+    for (const app of unnecessaryApps) {
+      try {
+        await execAsync(`taskkill /f /im ${app}.exe 2>nul`);
+        actions.push(`Closed unnecessary ${app} instances`);
+      } catch (error) {
+        // Continue
+      }
+    }
+    
+  } catch (error) {
+    actions.push('Some cleanup actions failed');
+  }
+  
+  return `🧹 **Cleanup Complete!**\n\n✅ Cleanup actions:\n${actions.map(a => `• ${a}`).join('\n')}\n\n💾 System cleaned up for better performance!`;
+}
+
+async function shutdownApps() {
+  const actions = [];
+  
+  try {
+    // Close common apps (be selective to avoid system issues)
+    const appsToClose = ['notepad', 'calc', 'mspaint'];
+    for (const app of appsToClose) {
+      try {
+        await execAsync(`taskkill /f /im ${app}.exe 2>nul`);
+        actions.push(`Closed ${app}`);
+      } catch (error) {
+        // Continue
+      }
+    }
+    
+    // Close browsers (optional - commented out for safety)
+    // await execAsync('taskkill /f /im chrome.exe 2>nul');
+    // await execAsync('taskkill /f /im firefox.exe 2>nul');
+    
+  } catch (error) {
+    actions.push('Some apps failed to close');
+  }
+  
+  return `🔌 **Apps Shutdown Complete!**\n\n✅ Closed applications:\n${actions.map(a => `• ${a}`).join('\n')}\n\n⚠️ Critical system apps were preserved for safety.`;
+}
 
 async function parseCommand(command) {
   try {
@@ -14,7 +489,7 @@ async function parseCommand(command) {
         { 
           role: "system", 
           content: `You are a desktop AI agent. Parse user commands and respond with JSON containing:
-          - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "unknown"
+          - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "unknown"
           - task: description for reminders
           - time: time for reminders (format: "HH:MM" or "today at HH:MM")
           - app: application name for DESKTOP apps only (calculator, notepad, paint, browser, etc.)
@@ -22,30 +497,32 @@ async function parseCommand(command) {
           - query: search term for web searches
           - search_type: "google", "youtube", "wikipedia", "github", "stackoverflow", "images", "news", "maps" (default: "google")
           - website: website shortcut or URL for direct visits
+          - info_type: "cpu", "memory", "disk", "processes", "network", "system", "battery", "temp" for system information
+          - action_type: "focus_mode", "break_time", "coding_setup", "study_mode", "gaming_mode", "meeting_mode", "cleanup", "shutdown_apps", "work_setup", "social_mode"
           
           IMPORTANT DISTINCTION:
           - Use "open_app" ONLY for desktop applications like calculator, notepad, paint, browser
           - Use "visit_website" for websites like gfg, leetcode, youtube, netflix, github, amazon, etc.
           - Use "search_web" when user wants to search for something
+          - Use "system_info" for system monitoring requests
+          - Use "quick_action" for workflow shortcuts and automation
           
           Examples:
-          "open calculator" -> {"action": "open_app", "app": "calculator"}
-          "open notepad" -> {"action": "open_app", "app": "notepad"}
-          "open browser" -> {"action": "open_app", "app": "browser"}
+          "focus mode" -> {"action": "quick_action", "action_type": "focus_mode"}
+          "break time" -> {"action": "quick_action", "action_type": "break_time"}
+          "coding setup" -> {"action": "quick_action", "action_type": "coding_setup"}
+          "study mode" -> {"action": "quick_action", "action_type": "study_mode"}
+          "gaming mode" -> {"action": "quick_action", "action_type": "gaming_mode"}
+          "meeting mode" -> {"action": "quick_action", "action_type": "meeting_mode"}
+          "work setup" -> {"action": "quick_action", "action_type": "work_setup"}
+          "cleanup desktop" -> {"action": "quick_action", "action_type": "cleanup"}
+          "close all apps" -> {"action": "quick_action", "action_type": "shutdown_apps"}
+          "social mode" -> {"action": "quick_action", "action_type": "social_mode"}
           
-          "open gfg" -> {"action": "visit_website", "website": "gfg"}
-          "visit leetcode" -> {"action": "visit_website", "website": "leetcode"}
+          "check cpu usage" -> {"action": "system_info", "info_type": "cpu"}
           "open leetcode" -> {"action": "visit_website", "website": "leetcode"}
-          "go to github" -> {"action": "visit_website", "website": "github"}
-          "open netflix" -> {"action": "visit_website", "website": "netflix"}
-          "visit amazon" -> {"action": "visit_website", "website": "amazon"}
-          "open youtube" -> {"action": "visit_website", "website": "youtube"}
-          
-          "search for javascript tutorials" -> {"action": "search_web", "query": "javascript tutorials"}
-          "youtube javascript tutorials" -> {"action": "search_web", "query": "javascript tutorials", "search_type": "youtube"}
-          
-          "remind me to call mom at 3pm" -> {"action": "add_reminder", "task": "call mom", "time": "15:00"}
-          "clear all tasks" -> {"action": "clear_tasks"}` 
+          "search for javascript" -> {"action": "search_web", "query": "javascript"}
+          "remind me to call mom at 3pm" -> {"action": "add_reminder", "task": "call mom", "time": "15:00"}` 
         },
         { role: "user", content: command }
       ],
@@ -374,8 +851,40 @@ export async function handleCommand(command, callback) {
       } else {
         callback(`❌ Please specify which website to visit.\n\n🌐 **Popular Sites:**\n• "open gfg" / "visit leetcode"\n• "go to youtube" / "open netflix"\n• "visit amazon" / "open gmail"\n• "go to github" / "open stackoverflow"\n\nOr use: "visit https://example.com"`);
       }
+    } else if (data.action === "system_info") {
+      if (data.info_type) {
+        callback(`🔍 Gathering ${data.info_type} information...`);
+        
+        // Get system information asynchronously
+        getSystemInfo(data.info_type).then(info => {
+          // Send a follow-up response with the system info
+          setTimeout(() => {
+            callback(info);
+          }, 500);
+        }).catch(error => {
+          callback(`❌ Error getting system information: ${error.message}`);
+        });
+      } else {
+        callback(`🖥️ **System Monitoring Available:**\n\n💻 **Hardware:**\n• "check cpu usage"\n• "show memory usage"\n• "check disk space"\n• "battery status"\n\n⚡ **System:**\n• "show running processes"\n• "system status"\n• "network info"\n\n🎯 **Quick Commands:**\n• "cpu" / "memory" / "disk" / "processes"`);
+      }
+    } else if (data.action === "quick_action") {
+      if (data.action_type) {
+        callback(`⚡ Executing ${data.action_type.replace('_', ' ')}...`);
+        
+        // Execute quick action asynchronously
+        executeQuickAction(data.action_type).then(result => {
+          // Send a follow-up response with the results
+          setTimeout(() => {
+            callback(result);
+          }, 1000);
+        }).catch(error => {
+          callback(`❌ Error executing quick action: ${error.message}`);
+        });
+      } else {
+        callback(`⚡ **Quick Actions Available:**\n\n🎯 **Productivity:**\n• "focus mode" - Close distractions, open productivity tools\n• "study mode" - Setup study environment\n• "work setup" - Open work tools (Gmail, Calendar, Drive)\n\n💻 **Development:**\n• "coding setup" - Open VS Code, GitHub, Stack Overflow\n\n🎮 **Entertainment:**\n• "break time" - Open music, close work apps\n• "gaming mode" - Setup gaming environment\n• "social mode" - Open social platforms\n\n💼 **Professional:**\n• "meeting mode" - Close distractions, open meeting tools\n\n🧹 **Maintenance:**\n• "cleanup" - Clear temp files, optimize system\n• "close all apps" - Shutdown unnecessary applications\n\n💡 Try: "focus mode", "coding setup", or "break time"`);
+      }
     } else {
-      callback("🤔 I'm not sure how to handle that command yet. Try:\n\n📝 **Tasks:**\n• 'remind me to [task] at [time]'\n• 'show my tasks' / 'clear all tasks'\n\n🔍 **Search:**\n• 'search for [anything]'\n• 'youtube [topic]' / 'wikipedia [topic]'\n• 'github [project]' / 'stackoverflow [problem]'\n\n🌐 **Visit Websites:**\n• 'open gfg' / 'visit leetcode'\n• 'go to youtube' / 'open netflix'\n• 'visit amazon' / 'open gmail'\n\n🚀 **Apps:**\n• 'open calculator' / 'open notepad'");
+      callback("🤔 I'm not sure how to handle that command yet. Try:\n\n📝 **Tasks:**\n• 'remind me to [task] at [time]'\n• 'show my tasks' / 'clear all tasks'\n\n🔍 **Search:**\n• 'search for [anything]'\n• 'youtube [topic]' / 'wikipedia [topic]'\n• 'github [project]' / 'stackoverflow [problem]'\n\n🌐 **Visit Websites:**\n• 'open gfg' / 'visit leetcode'\n• 'go to youtube' / 'open netflix'\n• 'visit amazon' / 'open gmail'\n\n�️ **System Monitor:**\n• 'check cpu usage' / 'show memory'\n• 'disk space' / 'running processes'\n\n�🚀 **Apps:**\n• 'open calculator' / 'open notepad'");
     }
   } catch (err) {
     console.error("Command handling error:", err);
