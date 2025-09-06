@@ -1,6 +1,11 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "path";
-import { handleCommand, initializeReminderSystem } from "./agent_efficient.js";
+import {
+  initializeReminderSystem,
+  handleCommand,
+  stopReminderSystem,
+  desktopAgent
+} from "./agent_modular.js";
 
 let mainWindow = null;
 
