@@ -5,7 +5,7 @@ import {
   handleCommand,
   stopReminderSystem,
   desktopAgent
-} from "./agent_modular.js";
+} from "./agent.js";
 
 let mainWindow = null;
 
