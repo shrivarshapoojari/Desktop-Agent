@@ -545,15 +545,21 @@
 
       .message-content {
         max-width: 75%;
+        min-width: 100px;
         padding: 18px 22px;
         border-radius: 20px;
         font-size: 0.95rem;
         line-height: 1.6;
         position: relative;
-        word-wrap: break-word;
+        word-wrap: normal;
+        word-break: normal;
+        white-space: normal;
+        overflow-wrap: anywhere;
         backdrop-filter: blur(10px);
         transition: all 0.3s ease;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        display: block;
+        text-align: left;
       }
 
       .message-content:hover {

@@ -133,7 +133,7 @@ function addMessage(type, content, isLoading = false) {
   
   if (type === 'user') {
     messageHeader.innerHTML = '<i class="fas fa-user"></i> You';
-    messageContent.textContent = content;
+    messageContent.innerHTML = content.replace(/\n/g, '<br>');
   } else if (type === 'agent') {
     messageHeader.innerHTML = '<i class="fas fa-robot"></i> Agent';
     messageContent.innerHTML = formatAgentResponse(content);
@@ -183,19 +183,24 @@ function addLoadingMessage() {
 
 // Format agent response with better styling
 function formatAgentResponse(response) {
+  // Convert markdown-style formatting
+  let formatted = response;
+  
+  // Handle bold text
+  formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Handle line breaks
+  formatted = formatted.replace(/\n/g, '<br>');
+  
   // Handle different types of responses
   if (response.includes('✅') || response.includes('🎯') || response.includes('💻')) {
-    // Success/action responses
-    return `<div class="response-success">${response}</div>`;
+    return `<div class="response-success">${formatted}</div>`;
   } else if (response.includes('❌') || response.includes('Error')) {
-    // Error responses
-    return `<div class="response-error">${response}</div>`;
+    return `<div class="response-error">${formatted}</div>`;
   } else if (response.includes('🔍') || response.includes('Processing')) {
-    // Processing responses
-    return `<div class="response-processing">${response}</div>`;
+    return `<div class="response-processing">${formatted}</div>`;
   } else {
-    // Regular responses
-    return response;
+    return formatted;
   }
 }
 
@@ -208,6 +213,8 @@ function scrollToBottom() {
 
 // Enhanced response handler
 ipcRenderer.on("agent-response", (event, response) => {
+  console.log("📨 Received response in renderer:", response);
+  
   isProcessing = false;
   
   // Remove loading message
@@ -226,8 +233,17 @@ ipcRenderer.on("agent-response", (event, response) => {
   sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
   sendBtn.disabled = false;
   
-  // Add agent response
-  addMessage('agent', response);
+  // Check if this is a reminder notification (contains "REMINDER ALERT")
+  if (response.includes("REMINDER ALERT")) {
+    // Add special styling for reminder notifications
+    addMessage('agent', response);
+    
+    // Show a more prominent notification
+    showReminderAlert(response);
+  } else {
+    // Add regular agent response
+    addMessage('agent', response);
+  }
   
   // Focus back to input
   inputBox.focus();
@@ -248,205 +264,134 @@ function showStatusFeedback(message, type = 'info') {
     backdrop-filter: blur(10px);
     border: 1px solid var(--glass-border);
     border-radius: 10px;
-    padding: 12px 16px;
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    z-index: 1001;
-    animation: slideInRight 0.3s ease-out;
-    box-shadow: var(--shadow);
+    padding: 12px 20px;
+    color: var(--text-color);
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 1000;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
   `;
   
-  const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle';
-  const color = type === 'success' ? 'var(--success-color)' : type === 'error' ? 'var(--error-color)' : 'var(--accent-color)';
+  if (type === 'success') {
+    statusDiv.style.borderColor = 'var(--success-color)';
+    statusDiv.style.background = 'rgba(76, 175, 80, 0.1)';
+  } else if (type === 'error') {
+    statusDiv.style.borderColor = 'var(--error-color)';
+    statusDiv.style.background = 'rgba(244, 67, 54, 0.1)';
+  }
   
-  statusDiv.innerHTML = `
-    <i class="fas fa-${icon}" style="color: ${color}; margin-right: 8px;"></i>
-    ${message}
-  `;
-  
+  statusDiv.textContent = message;
   document.body.appendChild(statusDiv);
   
-  // Auto remove after 3 seconds
+  // Trigger animation
+  requestAnimationFrame(() => {
+    statusDiv.style.transform = 'translateX(0)';
+  });
+  
+  // Remove after 3 seconds
   setTimeout(() => {
-    statusDiv.style.animation = 'slideOutRight 0.3s ease-out';
+    statusDiv.style.transform = 'translateX(100%)';
     setTimeout(() => {
-      statusDiv.remove();
+      if (statusDiv.parentNode) {
+        statusDiv.parentNode.removeChild(statusDiv);
+      }
     }, 300);
   }, 3000);
 }
 
-// Add CSS animations for status feedback
-const statusStyles = document.createElement('style');
-statusStyles.textContent = `
-  @keyframes slideInRight {
-    from { opacity: 0; transform: translateX(100px); }
-    to { opacity: 1; transform: translateX(0); }
-  }
+// Special reminder alert system
+function showReminderAlert(reminderText) {
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+    animation: overlayFadeIn 0.3s ease;
+  `;
   
-  @keyframes slideOutRight {
-    from { opacity: 1; transform: translateX(0); }
-    to { opacity: 0; transform: translateX(100px); }
-  }
+  // Create alert box
+  const alertBox = document.createElement('div');
+  alertBox.style.cssText = `
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    border: 2px solid var(--accent-color);
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    color: var(--text-color);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    animation: alertSlideIn 0.4s ease;
+    position: relative;
+  `;
   
-  .response-success {
-    border-left: 4px solid var(--success-color);
-    padding-left: 15px;
-    background: rgba(72, 187, 120, 0.1);
-    border-radius: 0 8px 8px 0;
-    margin: 5px 0;
-  }
+  // Create content
+  alertBox.innerHTML = `
+    <div style="font-size: 48px; margin-bottom: 20px;">🔔</div>
+    <h2 style="color: var(--accent-color); margin: 0 0 20px 0; font-size: 24px;">Reminder Alert!</h2>
+    <div style="white-space: pre-line; line-height: 1.6; margin-bottom: 30px; font-size: 16px;">${reminderText.replace(/\*\*/g, '')}</div>
+    <button id="reminder-ok" style="
+      background: linear-gradient(45deg, var(--accent-color), var(--success-color));
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    ">Got it!</button>
+  `;
   
-  .response-error {
-    border-left: 4px solid var(--error-color);
-    padding-left: 15px;
-    background: rgba(245, 101, 101, 0.1);
-    border-radius: 0 8px 8px 0;
-    margin: 5px 0;
-  }
+  overlay.appendChild(alertBox);
+  document.body.appendChild(overlay);
   
-  .response-processing {
-    border-left: 4px solid var(--warning-color);
-    padding-left: 15px;
-    background: rgba(237, 137, 54, 0.1);
-    border-radius: 0 8px 8px 0;
-    margin: 5px 0;
-  }
-`;
-document.head.appendChild(statusStyles);
-
-// Keyboard shortcuts
-document.addEventListener('keydown', (e) => {
-  // Ctrl/Cmd + K to focus input
-  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-    e.preventDefault();
-    inputBox.focus();
-    inputBox.select();
-  }
-  
-  // Ctrl/Cmd + D to toggle theme
-  if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
-    e.preventDefault();
-    toggleTheme();
-  }
-  
-  // Escape to clear input
-  if (e.key === 'Escape') {
-    inputBox.value = '';
-    inputBox.blur();
-  }
-});
-
-// Welcome message on first load
-if (messageCount === 0) {
-  setTimeout(() => {
-    addMessage('agent', '👋 Welcome to Desktop Agent! I\'m here to help you with productivity, system monitoring, web searches, and more. Try one of the commands below or ask me anything!');
-  }, 1000);
-}
-
-// Add typing sound effect
-function playTypingSound() {
-  // Create a subtle click sound using Web Audio API
-  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  const oscillator = audioContext.createOscillator();
-  const gainNode = audioContext.createGain();
-  
-  oscillator.connect(gainNode);
-  gainNode.connect(audioContext.destination);
-  
-  oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-  gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-  
-  oscillator.start(audioContext.currentTime);
-  oscillator.stop(audioContext.currentTime + 0.1);
-}
-
-// Add typing sound to input
-inputBox.addEventListener('keydown', () => {
-  if (Math.random() > 0.7) { // Random typing sounds
-    try {
-      playTypingSound();
-    } catch (e) {
-      // Fallback if audio context fails
-    }
-  }
-});
-
-// Add particle effect on send
-function createParticleEffect(element) {
-  for (let i = 0; i < 10; i++) {
-    const particle = document.createElement('div');
-    particle.style.cssText = `
-      position: absolute;
-      width: 4px;
-      height: 4px;
-      background: var(--accent-color);
-      border-radius: 50%;
-      pointer-events: none;
-      z-index: 1000;
-    `;
-    
-    const rect = element.getBoundingClientRect();
-    particle.style.left = rect.left + rect.width / 2 + 'px';
-    particle.style.top = rect.top + rect.height / 2 + 'px';
-    
-    document.body.appendChild(particle);
-    
-    const angle = (Math.PI * 2 * i) / 10;
-    const velocity = 50 + Math.random() * 50;
-    
-    particle.animate([
-      { 
-        transform: 'translate(0, 0) scale(1)',
-        opacity: 1 
-      },
-      { 
-        transform: `translate(${Math.cos(angle) * velocity}px, ${Math.sin(angle) * velocity}px) scale(0)`,
-        opacity: 0 
-      }
-    ], {
-      duration: 800,
-      easing: 'cubic-bezier(0.4, 0, 0.6, 1)'
-    }).onfinish = () => particle.remove();
-  }
-}
-
-// Enhanced send button click
-const originalSendCommand = sendCommand;
-sendCommand = function() {
-  createParticleEffect(sendBtn);
-  originalSendCommand();
-};
-
-// Add easter egg - Konami code
-let konamiCode = [];
-const konami = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'KeyB', 'KeyA'];
-
-document.addEventListener('keydown', (e) => {
-  konamiCode.push(e.code);
-  konamiCode = konamiCode.slice(-10);
-  
-  if (konamiCode.join(',') === konami.join(',')) {
-    // Easter egg activated!
-    document.body.style.animation = 'rainbow 2s infinite';
-    showStatusFeedback('🎉 Easter egg activated! You found the secret!', 'success');
-    
+  // Handle close
+  const okButton = alertBox.querySelector('#reminder-ok');
+  okButton.addEventListener('click', () => {
+    overlay.style.animation = 'overlayFadeOut 0.3s ease';
     setTimeout(() => {
-      document.body.style.animation = '';
-    }, 4000);
+      if (overlay.parentNode) {
+        overlay.parentNode.removeChild(overlay);
+      }
+    }, 300);
+  });
+  
+  // Add animations to head if not already added
+  if (!document.querySelector('#reminder-animations')) {
+    const style = document.createElement('style');
+    style.id = 'reminder-animations';
+    style.textContent = `
+      @keyframes overlayFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes overlayFadeOut {
+        from { opacity: 1; }
+        to { opacity: 0; }
+      }
+      @keyframes alertSlideIn {
+        from { 
+          opacity: 0;
+          transform: translateY(-50px) scale(0.8);
+        }
+        to { 
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+    `;
+    document.head.appendChild(style);
   }
-});
-
-// Add rainbow animation for easter egg
-const rainbowStyle = document.createElement('style');
-rainbowStyle.textContent = `
-  @keyframes rainbow {
-    0% { filter: hue-rotate(0deg); }
-    100% { filter: hue-rotate(360deg); }
-  }
-`;
-document.head.appendChild(rainbowStyle);
-
-// Make functions available globally
-window.toggleTheme = toggleTheme;
-window.setCommand = setCommand;
+}

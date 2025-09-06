@@ -4,11 +4,232 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import os from "os";
 import dotenv from "dotenv";
+import notifier from "node-notifier";
 
 const execAsync = promisify(exec);
 
 dotenv.config();
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+// Reminder notification system
+let reminderInterval = null;
+let notificationCallback = null;
+let triggeredReminders = new Set(); // Track already triggered reminders
+
+// Initialize reminder checking
+export function initializeReminderSystem(callback) {
+  notificationCallback = callback;
+  
+  // Check for due reminders every 30 seconds
+  if (reminderInterval) {
+    clearInterval(reminderInterval);
+  }
+  
+  reminderInterval = setInterval(checkDueReminders, 30000);
+  console.log("Reminder system initialized");
+  
+  // Also check immediately
+  setTimeout(checkDueReminders, 2000);
+}
+
+// Check for due reminders
+function checkDueReminders() {
+  getTasks((tasks) => {
+    const now = new Date();
+    const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+    
+    tasks.forEach(task => {
+      const reminderKey = `${task.id}-${task.time}`;
+       
+      // Check if this reminder has already been triggered
+      if (task.time === currentTime && !triggeredReminders.has(reminderKey)) {
+        // Mark as triggered to prevent duplicate notifications
+        triggeredReminders.add(reminderKey);
+        console.log("current time",currentTime)
+        console.log("task time",task.time)
+        // Send notification to UI
+        if (notificationCallback) {
+          notificationCallback(`🔔 **REMINDER ALERT!** 🔔\n\n📋 **Task:** ${task.description}\n🕐 **Time:** ${task.time}\n\n✅ This task will be automatically removed after this notification\n� Use "show my tasks" to see remaining reminders`);
+        }
+        
+        // Also show Windows system notification
+        try {
+            console.log("notify")
+          notifier.notify({
+            title: '🔔 Desktop Agent Reminder',
+            message: `${task.description} at ${task.time}`,
+            icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png', // Bell icon
+            sound: true, // Play notification sound
+            wait: false, // Don't wait for user action
+            timeout: 10, // Auto-dismiss after 10 seconds
+            type: 'info',
+            actions: ['Dismiss', 'Show Tasks'],
+            dropdownLabel: 'Options'
+          }, (err, response, metadata) => {
+            if (err) {
+              console.log("Node-notifier failed, trying PowerShell fallback...");
+              // Fallback to PowerShell notification
+              const toastScript = `
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+
+$template = @"
+<toast>
+    <visual>
+        <binding template="ToastText02">
+            <text id="1">🔔 Desktop Agent Reminder</text>
+            <text id="2">${task.description} at ${task.time}</text>
+        </binding>
+    </visual>
+    <audio src="ms-winsoundevent:Notification.Default" />
+</toast>
+"@
+
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml($template)
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("Desktop Agent").Show($toast)
+              `.trim();
+              
+              exec(`powershell -Command "${toastScript}"`, (psError) => {
+                if (psError) {
+                  console.log("PowerShell notification also failed, using msg command...");
+                  exec(`msg %username% "🔔 Desktop Agent Reminder: ${task.description} at ${task.time}"`, (msgError) => {
+                    if (msgError) {
+                      console.log("All system notifications failed, using app notification only");
+                    } else {
+                      console.log("✅ Windows msg notification sent");
+                    }
+                  });
+                } else {
+                  console.log("✅ Windows PowerShell toast notification sent");
+                }
+              });
+            } else {
+              console.log("✅ Windows system notification sent via node-notifier");
+              // Handle user actions if they click on the notification
+              if (response === 'activate' && metadata.activationValue === 'Show Tasks') {
+                console.log("User clicked 'Show Tasks' from notification");
+              }
+            }
+          });
+        } catch (error) {
+          console.log("System notification not available:", error.message);
+        }
+        
+        console.log(`✅ Reminder notification sent: ${task.description} at ${task.time}`);
+        
+        // Automatically delete the task from database after notification
+        deleteTask(task.id, (deleteResult) => {
+          if (deleteResult) {
+            console.log(`🗑️ Task ${task.id} automatically deleted after reminder notification`);
+          } else {
+            console.log(`❌ Failed to delete task ${task.id} after reminder`);
+          }
+        });
+      }
+    });
+    
+    // Clean up old triggered reminders (remove entries older than 2 minutes)
+    const twoMinutesAgo = new Date(now.getTime() - 2 * 60 * 1000);
+    const twoMinutesAgoTime = `${twoMinutesAgo.getHours().toString().padStart(2, '0')}:${twoMinutesAgo.getMinutes().toString().padStart(2, '0')}`;
+    
+    // Remove old entries from triggeredReminders set
+    tasks.forEach(task => {
+      const reminderKey = `${task.id}-${task.time}`;
+      if (task.time <= twoMinutesAgoTime) {
+        triggeredReminders.delete(reminderKey);
+      }
+    });
+  });
+}
+
+// Stop reminder system (for cleanup)
+export function stopReminderSystem() {
+  if (reminderInterval) {
+    clearInterval(reminderInterval);
+    reminderInterval = null;
+    console.log("Reminder system stopped");
+  }
+}
+
+// Helper function to parse time formats
+function parseTimeFormat(timeString) {
+  if (!timeString) return null;
+  
+  const time = timeString.toLowerCase().trim();
+  
+  // First, extract time from natural language phrases
+  let cleanTime = time;
+  
+  // Handle phrases like "today at 17:59", "at 3pm", "in 2 hours", etc.
+  const naturalPatterns = [
+    // "today at HH:MM" or "at HH:MM"
+    /(?:today\s+at\s+|at\s+)?(\d{1,2}(?::\d{2})?(?:\s*(?:am|pm))?)/,
+    // "in X minutes" - convert to actual time
+    /in\s+(\d+)\s+minutes?/,
+    // "in X hours" - convert to actual time
+    /in\s+(\d+)\s+hours?/
+  ];
+  
+  // Handle "in X minutes/hours" conversions
+  if (time.includes('in ') && (time.includes('minute') || time.includes('hour'))) {
+    const now = new Date();
+    
+    const minutesMatch = time.match(/in\s+(\d+)\s+minutes?/);
+    const hoursMatch = time.match(/in\s+(\d+)\s+hours?/);
+    
+    if (minutesMatch) {
+      const minutes = parseInt(minutesMatch[1]);
+      const futureTime = new Date(now.getTime() + minutes * 60000);
+      cleanTime = `${futureTime.getHours().toString().padStart(2, '0')}:${futureTime.getMinutes().toString().padStart(2, '0')}`;
+    } else if (hoursMatch) {
+      const hours = parseInt(hoursMatch[1]);
+      const futureTime = new Date(now.getTime() + hours * 3600000);
+      cleanTime = `${futureTime.getHours().toString().padStart(2, '0')}:${futureTime.getMinutes().toString().padStart(2, '0')}`;
+    }
+  } else {
+    // Extract time from natural language
+    for (const pattern of naturalPatterns) {
+      const match = time.match(pattern);
+      if (match && match[1]) {
+        cleanTime = match[1].trim();
+        break;
+      }
+    }
+  }
+  
+  // Now parse the cleaned time
+  const patterns = [
+    // 12-hour format with am/pm
+    /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/,
+    // 24-hour format
+    /^(\d{1,2}):(\d{2})$/,
+    // Just hour (assume :00)
+    /^(\d{1,2})$/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = cleanTime.match(pattern);
+    if (match) {
+      let hours = parseInt(match[1]);
+      let minutes = parseInt(match[2] || 0);
+      
+      // Handle am/pm
+      if (match[3]) {
+        if (match[3] === 'pm' && hours !== 12) hours += 12;
+        if (match[3] === 'am' && hours === 12) hours = 0;
+      }
+      
+      // Validate time
+      if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      }
+    }
+  }
+  
+  return null; // Return null if no valid time found
+}
 
 // System monitoring functions
 async function getSystemInfo(infoType) {
@@ -541,8 +762,13 @@ export async function handleCommand(command, callback) {
 
     if (data.action === "add_reminder") {
       if (data.task && data.time) {
-        addTask(data.task, data.time);
-        callback(`✅ Reminder set: "${data.task}" at ${data.time}`);
+        const parsedTime = parseTimeFormat(data.time);
+        if (parsedTime) {
+          addTask(data.task, parsedTime);
+          callback(`✅ Reminder set: "${data.task}" at ${parsedTime}`);
+        } else {
+          callback("❌ Invalid time format. Use formats like '3pm', '15:30', '2:30pm', etc.");
+        }
       } else {
         callback("❌ Please specify both task and time for the reminder.");
       }
