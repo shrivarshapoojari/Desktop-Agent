@@ -55,17 +55,18 @@ class CommandParser {
    */
   getSystemPrompt() {
     return `You are a desktop AI agent. Parse user commands and respond with JSON containing:
-    - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "weather", "news", "daily_briefing", "weather_activity", "chat"
+    - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "weather", "news", "news_search", "news_discuss", "news_insights", "news_recommendations", "news_sentiment", "daily_briefing", "weather_activity", "chat"
     - task: description for reminders
     - time: time for reminders (convert to HH:MM format, e.g., "3pm" -> "15:00")
     - task_id: ID for deleting specific tasks
     - app: application name for opening apps
-    - query: search query for web searches
+    - query: search query for web searches or news searches
     - website: website shortcut or URL for direct visits
     - info_type: "cpu", "memory", "disk", "processes", "network", "system", "battery", "temp" for system information
     - action_type: "focus_mode", "break_time", "coding_setup", "study_mode", "gaming_mode", "meeting_mode", "cleanup", "shutdown_apps", "work_setup", "social_mode"
     - location: city/location for weather (optional, will auto-detect if not provided)
     - category: news category - "general", "technology", "business", "science", "health"
+    - topic: topic for news discussion
     - activity: activity type for weather advice - "running", "cycling", "picnic", etc.
     - message: for casual conversation responses
     
@@ -73,11 +74,16 @@ class CommandParser {
     - Use "chat" for greetings, casual questions, compliments, or general conversation
     - Use "open_app" ONLY for desktop applications like calculator, notepad, paint, browser
     - Use "visit_website" for websites like gfg, leetcode, youtube, netflix, github, amazon, etc.
-    - Use "search_web" when user wants to search for something
+    - Use "search_web" when user wants to search for something on the web
     - Use "system_info" for system monitoring requests
     - Use "quick_action" for workflow shortcuts and automation
     - Use "weather" for weather information requests
-    - Use "news" for news headlines and updates
+    - Use "news" for general news headlines with AI analysis
+    - Use "news_search" for specific news topic searches
+    - Use "news_discuss" when user wants to discuss or understand a news topic
+    - Use "news_insights" for learning opportunities from current events
+    - Use "news_recommendations" for personalized news suggestions
+    - Use "news_sentiment" for emotional analysis of current news
     - Use "daily_briefing" for combined weather and news summary
     - Use "weather_activity" for activity-specific weather advice
     
@@ -87,6 +93,11 @@ class CommandParser {
     "what's the weather" -> {"action": "weather"}
     "weather in London" -> {"action": "weather", "location": "London"}
     "show me news" -> {"action": "news"}
+    "search news about AI" -> {"action": "news_search", "query": "AI"}
+    "discuss climate change news" -> {"action": "news_discuss", "topic": "climate change"}
+    "what can I learn from current events" -> {"action": "news_insights"}
+    "recommend news for me" -> {"action": "news_recommendations"}
+    "how is the news mood today" -> {"action": "news_sentiment"}
     "tech news" -> {"action": "news", "category": "technology"}
     "daily briefing" -> {"action": "daily_briefing"}
     "weather for running" -> {"action": "weather_activity", "activity": "running"}
@@ -183,7 +194,9 @@ class CommandParser {
     const validActions = [
       'add_reminder', 'show_tasks', 'clear_tasks', 'delete_task',
       'open_app', 'search_web', 'visit_website', 'system_info',
-      'quick_action', 'weather', 'news', 'daily_briefing', 'weather_activity', 'chat'
+      'quick_action', 'weather', 'news', 'news_search', 'news_discuss', 
+      'news_insights', 'news_recommendations', 'news_sentiment',
+      'daily_briefing', 'weather_activity', 'chat'
     ];
 
     return validActions.includes(parsed.action);

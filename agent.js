@@ -119,6 +119,26 @@ class DesktopAgent {
         await this.handleNews(parsedCommand, callback);
         break;
       
+      case 'news_search':
+        await this.handleNewsSearch(parsedCommand, callback);
+        break;
+      
+      case 'news_discuss':
+        await this.handleNewsDiscussion(parsedCommand, callback);
+        break;
+      
+      case 'news_insights':
+        await this.handleNewsInsights(parsedCommand, callback);
+        break;
+      
+      case 'news_recommendations':
+        await this.handleNewsRecommendations(parsedCommand, callback);
+        break;
+      
+      case 'news_sentiment':
+        await this.handleNewsSentiment(parsedCommand, callback);
+        break;
+      
       case 'daily_briefing':
         await this.handleDailyBriefing(parsedCommand, callback);
         break;
@@ -282,18 +302,111 @@ class DesktopAgent {
   }
 
   /**
-   * Handle news requests
+   * Handle news requests with AI-powered analysis
    * @param {Object} parsedCommand - Parsed command
    * @param {Function} callback - Response callback
    */
   async handleNews(parsedCommand, callback) {
+    const { category, query } = parsedCommand;
+    
+    try {
+      const news = await weatherNewsSystem.getNews(category || "general", query);
+      callback(news);
+    } catch (error) {
+      callback("❌ Failed to get intelligent news analysis.");
+    }
+  }
+
+  /**
+   * Handle intelligent news search
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleNewsSearch(parsedCommand, callback) {
+    const { query } = parsedCommand;
+    
+    if (!query) {
+      callback("❌ Please specify what news topic you'd like to search for.");
+      return;
+    }
+
+    try {
+      const searchResults = await weatherNewsSystem.searchNews(query);
+      callback(searchResults);
+    } catch (error) {
+      callback("❌ Failed to perform intelligent news search.");
+    }
+  }
+
+  /**
+   * Handle news discussion
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleNewsDiscussion(parsedCommand, callback) {
+    const { topic } = parsedCommand;
+    
+    if (!topic) {
+      callback("❌ Please specify what news topic you'd like to discuss.");
+      return;
+    }
+
+    try {
+      const discussion = await weatherNewsSystem.discussNews(topic);
+      callback(discussion);
+    } catch (error) {
+      callback("❌ Failed to start news discussion.");
+    }
+  }
+
+  /**
+   * Handle news learning insights
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleNewsInsights(parsedCommand, callback) {
     const { category } = parsedCommand;
     
     try {
-      const news = await weatherNewsSystem.getNews(category || "general");
-      callback(news);
+      const insights = await weatherNewsSystem.getNewsLearningInsights(category || "general");
+      callback(insights);
     } catch (error) {
-      callback("❌ Failed to get news information.");
+      callback("❌ Failed to generate news learning insights.");
+    }
+  }
+
+  /**
+   * Handle personalized news recommendations
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleNewsRecommendations(parsedCommand, callback) {
+    try {
+      const recommendations = await weatherNewsSystem.getPersonalizedRecommendations();
+      callback(recommendations);
+    } catch (error) {
+      callback("❌ Failed to generate personalized news recommendations.");
+    }
+  }
+
+  /**
+   * Handle news sentiment analysis
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleNewsSentiment(parsedCommand, callback) {
+    const { category } = parsedCommand;
+    
+    try {
+      const newsData = await weatherNewsSystem.fetchNewsData(category || "general");
+      if (newsData) {
+        const sentiment = await weatherNewsSystem.analyzeNewsSentiment(newsData);
+        callback(sentiment);
+      } else {
+        callback("❌ No news data available for sentiment analysis.");
+      }
+    } catch (error) {
+      callback("❌ Failed to analyze news sentiment.");
     }
   }
 
@@ -513,10 +626,15 @@ class DesktopAgent {
 **Weather & News:**
 • "what's the weather" - Current weather (auto-detects location)
 • "weather in [city]" - Weather for specific location
-• "show news" - Latest news headlines
-• "tech news" - Technology news
-• "business news" - Business updates
-• "daily briefing" - Combined weather and news
+• "show news" - AI-curated news headlines
+• "tech news" - Technology news with analysis
+• "business news" - Business updates with insights
+• "search news about [topic]" - Intelligent news search
+• "discuss [news topic]" - Deep dive into news topics
+• "recommend news for me" - Personalized news suggestions
+• "what can I learn from current events" - Learning insights
+• "how is the news mood today" - Sentiment analysis
+• "daily briefing" - Combined weather and news with AI insights
 • "weather for running" - Activity-specific weather advice
 
 **System Monitoring:**

@@ -1,10 +1,14 @@
 import { exec } from "child_process";
 import https from "https";
 import fs from "fs";
+import Groq from "groq-sdk";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 /**
- * Weather and News Integration Module
- * Provides real-time weather data and news updates
+ * Intelligent Weather and News Integration Module
+ * Provides AI-powered real-time weather data and intelligent news analysis
  */
 class WeatherNewsSystem {
   constructor() {
@@ -13,6 +17,22 @@ class WeatherNewsSystem {
     this.weatherCacheTime = 0;
     this.newsCacheTime = 0;
     this.cacheExpiry = 30 * 60 * 1000; // 30 minutes cache
+    
+    // AI client for intelligent news processing
+    this.aiClient = new Groq({ apiKey: process.env.GROQ_API_KEY });
+    
+    // User preferences and learning
+    this.userPreferences = {
+      interests: [],
+      readingHistory: [],
+      preferredSources: [],
+      skipTopics: [],
+      summaryStyle: "concise" // concise, detailed, technical
+    };
+    
+    // News intelligence cache
+    this.processedNewsCache = new Map();
+    this.newsAnalysisCache = new Map();
   }
 
   /**
@@ -44,30 +64,318 @@ class WeatherNewsSystem {
   }
 
   /**
-   * Get news headlines
+   * Get news headlines with AI-powered analysis and personalization
    * @param {string} category - News category (optional)
-   * @returns {Promise<string>} News headlines
+   * @param {string} userQuery - Specific user query for personalized results
+   * @returns {Promise<string>} Intelligently curated news
    */
-  async getNews(category = "general") {
+  async getNews(category = "general", userQuery = null) {
     try {
-      // Check cache first
-      if (this.newsCache && (Date.now() - this.newsCacheTime < this.cacheExpiry)) {
-        return this.newsCache;
+      // Check if we have cached personalized results
+      const cacheKey = `${category}_${userQuery || 'default'}`;
+      if (this.processedNewsCache.has(cacheKey)) {
+        const cached = this.processedNewsCache.get(cacheKey);
+        if (Date.now() - cached.timestamp < this.cacheExpiry) {
+          return cached.content;
+        }
       }
 
-      const newsData = await this.fetchNewsData(category);
+      // Fetch raw news data
+      const rawNewsData = await this.fetchNewsData(category);
       
-      if (newsData) {
-        const formatted = this.formatNewsData(newsData);
-        this.newsCache = formatted;
-        this.newsCacheTime = Date.now();
-        return formatted;
+      if (rawNewsData && rawNewsData.length > 0) {
+        // AI-powered content analysis and personalization
+        const intelligentNews = await this.analyzeAndPersonalizeNews(rawNewsData, category, userQuery);
+        
+        // Cache the processed results
+        this.processedNewsCache.set(cacheKey, {
+          content: intelligentNews,
+          timestamp: Date.now()
+        });
+        
+        return intelligentNews;
       } else {
         return "❌ Could not fetch news data. Please try again later.";
       }
     } catch (error) {
-      console.error("News fetch error:", error);
-      return "❌ Error fetching news information.";
+      console.error("Intelligent news fetch error:", error);
+      return "❌ Error fetching and analyzing news information.";
+    }
+  }
+
+  /**
+   * AI-powered news analysis and personalization
+   * @param {Array} rawNews - Raw news articles
+   * @param {string} category - News category
+   * @param {string} userQuery - User's specific query
+   * @returns {Promise<string>} Analyzed and personalized news
+   */
+  async analyzeAndPersonalizeNews(rawNews, category, userQuery) {
+    try {
+      // Prepare articles for AI analysis
+      const articlesForAnalysis = rawNews.slice(0, 15).map((article, index) => ({
+        id: index + 1,
+        title: article.title,
+        description: article.description,
+        link: article.link,
+        pubDate: article.pubDate
+      }));
+
+      // Create AI prompt for intelligent news analysis
+      const analysisPrompt = this.createNewsAnalysisPrompt(articlesForAnalysis, category, userQuery);
+
+      // Get AI analysis
+      const response = await this.aiClient.chat.completions.create({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          { 
+            role: "system", 
+            content: "You are an intelligent news analyst. Analyze news articles and provide personalized, insightful summaries with relevance scoring and intelligent curation."
+          },
+          { role: "user", content: analysisPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 1500
+      });
+
+      const aiAnalysis = response.choices[0].message.content;
+      
+      // Update user interests based on the query
+      if (userQuery) {
+        this.updateUserInterests(userQuery, category);
+      }
+
+      return this.formatIntelligentNews(aiAnalysis, category);
+
+    } catch (error) {
+      console.error("AI news analysis error:", error);
+      // Fallback to basic formatting if AI fails
+      return this.formatNewsData(rawNews);
+    }
+  }
+
+  /**
+   * Create AI prompt for news analysis
+   * @param {Array} articles - Articles to analyze
+   * @param {string} category - News category
+   * @param {string} userQuery - User query
+   * @returns {string} AI prompt
+   */
+  createNewsAnalysisPrompt(articles, category, userQuery) {
+    const userInterests = this.getUserInterestsString();
+    const currentDate = new Date().toLocaleDateString();
+
+    return `Analyze these ${category} news articles from ${currentDate} and provide an intelligent, personalized summary:
+
+ARTICLES TO ANALYZE:
+${articles.map(article => `
+ID: ${article.id}
+TITLE: ${article.title}
+DESCRIPTION: ${article.description}
+PUBLISHED: ${article.pubDate}
+---`).join('\n')}
+
+USER CONTEXT:
+- Query: ${userQuery || 'General news interest'}
+- Past interests: ${userInterests}
+- Category: ${category}
+
+ANALYSIS REQUIREMENTS:
+1. RELEVANCE SCORING: Score each article 1-10 based on importance and user relevance
+2. CONTENT ANALYSIS: Identify key themes, impact, and significance
+3. PERSONALIZATION: Prioritize based on user's past interests and current query
+4. INTELLIGENT CURATION: Select top 5 most relevant articles
+5. INSIGHT GENERATION: Provide context, connections between stories, and implications
+6. SENTIMENT ANALYSIS: Note tone and emotional context where relevant
+
+OUTPUT FORMAT:
+🧠 **AI-Curated News Analysis**
+
+**Key Insights:**
+[Provide 2-3 key insights about current events and trends]
+
+**Top Stories (Ranked by Relevance):**
+
+**1. [Title] (Relevance: X/10)**
+📝 **Analysis:** [AI insight about why this matters]
+🔗 **Impact:** [Who this affects and how]
+🎯 **Personal Relevance:** [Why this might interest the user]
+📊 **Context:** [Background or connection to other events]
+
+[Continue for top 5 stories...]
+
+**Trend Analysis:**
+[Identify patterns or emerging themes across the stories]
+
+**Follow-up Suggestions:**
+[Suggest related topics or questions the user might want to explore]
+
+Make the analysis conversational, insightful, and tailored to the user's interests.`;
+  }
+
+  /**
+   * Format AI-analyzed news for display
+   * @param {string} aiAnalysis - AI analysis result
+   * @param {string} category - News category
+   * @returns {string} Formatted intelligent news
+   */
+  formatIntelligentNews(aiAnalysis, category) {
+    const timestamp = new Date().toLocaleTimeString();
+    
+    return `${aiAnalysis}
+
+---
+📊 **Analysis Summary:**
+• Content analyzed by AI for relevance and significance
+• Personalized based on your interests and reading patterns
+• Category: ${category.charAt(0).toUpperCase() + category.slice(1)}
+
+*Last analyzed: ${timestamp}*
+
+💡 **Want to explore further?** Ask me:
+• "Tell me more about [story title]"
+• "What's the impact of [event]?"
+• "Show me related news about [topic]"
+• "Explain why this matters"`;
+  }
+
+  /**
+   * Update user interests based on queries and interactions
+   * @param {string} query - User query
+   * @param {string} category - News category
+   */
+  updateUserInterests(query, category) {
+    // Extract keywords and topics from user query
+    const keywords = this.extractKeywords(query.toLowerCase());
+    
+    // Update interests with decay (recent interests weighted more)
+    keywords.forEach(keyword => {
+      const existing = this.userPreferences.interests.find(interest => interest.topic === keyword);
+      if (existing) {
+        existing.weight = Math.min(existing.weight + 0.1, 1.0);
+        existing.lastSeen = Date.now();
+      } else {
+        this.userPreferences.interests.push({
+          topic: keyword,
+          weight: 0.3,
+          category: category,
+          lastSeen: Date.now()
+        });
+      }
+    });
+
+    // Keep only top 20 interests to prevent memory bloat
+    this.userPreferences.interests = this.userPreferences.interests
+      .sort((a, b) => b.weight - a.weight)
+      .slice(0, 20);
+
+    // Add to reading history
+    this.userPreferences.readingHistory.push({
+      query: query,
+      category: category,
+      timestamp: Date.now()
+    });
+
+    // Keep only last 50 reading history entries
+    if (this.userPreferences.readingHistory.length > 50) {
+      this.userPreferences.readingHistory = this.userPreferences.readingHistory.slice(-50);
+    }
+  }
+
+  /**
+   * Extract keywords from user query
+   * @param {string} query - User query
+   * @returns {Array} Extracted keywords
+   */
+  extractKeywords(query) {
+    // Simple keyword extraction (could be enhanced with NLP)
+    const stopWords = ['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'about', 'show', 'me', 'get', 'news', 'latest'];
+    
+    return query
+      .replace(/[^\w\s]/g, '')
+      .split(/\s+/)
+      .filter(word => word.length > 2 && !stopWords.includes(word))
+      .slice(0, 5); // Keep top 5 keywords
+  }
+
+  /**
+   * Get user interests as string for AI context
+   * @returns {string} User interests summary
+   */
+  getUserInterestsString() {
+    if (this.userPreferences.interests.length === 0) {
+      return "No established interests yet";
+    }
+
+    return this.userPreferences.interests
+      .slice(0, 10)
+      .map(interest => `${interest.topic} (weight: ${interest.weight.toFixed(1)})`)
+      .join(', ');
+  }
+
+  /**
+   * Get personalized news recommendations
+   * @returns {Promise<string>} Personalized recommendations
+   */
+  async getPersonalizedRecommendations() {
+    try {
+      if (this.userPreferences.interests.length === 0) {
+        return "📚 **Getting to Know You**\n\nI'm still learning your interests! Try asking me about specific topics like:\n• 'Show me tech news about AI'\n• 'Business news about startups'\n• 'Science news about climate'\n\nThe more you interact, the better I'll understand your preferences!";
+      }
+
+      const topInterests = this.userPreferences.interests.slice(0, 5);
+      const recommendations = await Promise.all([
+        this.getNews("technology", topInterests[0]?.topic),
+        this.getNews("business", topInterests[1]?.topic),
+        this.getNews("science", topInterests[2]?.topic)
+      ]);
+
+      return `🎯 **Personalized News Recommendations**
+
+Based on your interests: ${topInterests.map(i => i.topic).join(', ')}
+
+${recommendations.join('\n\n---\n\n')}
+
+💡 **Tip:** Your recommendations get better as I learn your preferences!`;
+
+    } catch (error) {
+      return "❌ Error generating personalized recommendations.";
+    }
+  }
+
+  /**
+   * Analyze news sentiment and provide emotional context
+   * @param {Array} articles - News articles
+   * @returns {Promise<string>} Sentiment analysis
+   */
+  async analyzeNewsSentiment(articles) {
+    try {
+      const sentimentPrompt = `Analyze the overall emotional tone and sentiment of these news headlines:
+
+${articles.slice(0, 10).map(article => `• ${article.title}`).join('\n')}
+
+Provide:
+1. Overall sentiment (positive/negative/neutral with percentage)
+2. Emotional themes (hope, concern, excitement, etc.)
+3. Mood impact assessment
+4. Suggestions for emotional balance if news is overwhelming
+
+Keep it brief and helpful.`;
+
+      const response = await this.aiClient.chat.completions.create({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          { role: "system", content: "You are an emotional intelligence assistant analyzing news sentiment." },
+          { role: "user", content: sentimentPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      });
+
+      return `🎭 **News Sentiment Analysis**\n\n${response.choices[0].message.content}`;
+
+    } catch (error) {
+      return "❌ Error analyzing news sentiment.";
     }
   }
 
@@ -308,19 +616,184 @@ class WeatherNewsSystem {
   }
 
   /**
-   * Get combined weather and news briefing
+   * Get combined weather and news briefing with AI insights
    * @param {string} location - Location for weather
    * @param {string} newsCategory - News category
-   * @returns {Promise<string>} Combined briefing
+   * @returns {Promise<string>} Intelligent combined briefing
    */
   async getDailyBriefing(location = null, newsCategory = "general") {
     try {
       const weather = await this.getWeather(location);
       const news = await this.getNews(newsCategory);
+      
+      // Create AI-powered briefing that connects weather and news
+      const briefingPrompt = `Create an intelligent daily briefing that connects weather and news information:
 
-      return `🌅 **Daily Briefing - ${new Date().toLocaleDateString()}**\n\n${weather}\n\n${news}`;
+WEATHER INFO:
+${weather}
+
+NEWS INFO:
+${news}
+
+Create a cohesive briefing that:
+1. Summarizes the key weather and news highlights
+2. Identifies any connections between weather and news (economic impact, travel, events, etc.)
+3. Provides personalized recommendations for the day
+4. Suggests activities or precautions based on both weather and current events
+
+Keep it concise but insightful, focusing on actionable information.`;
+
+      const response = await this.aiClient.chat.completions.create({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          { role: "system", content: "You are an intelligent assistant creating personalized daily briefings." },
+          { role: "user", content: briefingPrompt }
+        ],
+        temperature: 0.4,
+        max_tokens: 800
+      });
+
+      return `🌅 **AI-Powered Daily Briefing - ${new Date().toLocaleDateString()}**\n\n${response.choices[0].message.content}`;
     } catch (error) {
-      return "❌ Error generating daily briefing";
+      // Fallback to basic briefing if AI fails
+      const weather = await this.getWeather(location);
+      const news = await this.getNews(newsCategory);
+      return `🌅 **Daily Briefing - ${new Date().toLocaleDateString()}**\n\n${weather}\n\n${news}`;
+    }
+  }
+
+  /**
+   * Intelligent news search with context understanding
+   * @param {string} query - User's search query
+   * @returns {Promise<string>} Contextual search results
+   */
+  async searchNews(query) {
+    try {
+      // Determine best category and expand query using AI
+      const queryAnalysisPrompt = `Analyze this news search query and help optimize it:
+
+USER QUERY: "${query}"
+
+Provide:
+1. Best news category to search (technology, business, science, health, general)
+2. Expanded search terms and related keywords
+3. Predicted user intent (breaking news, background info, analysis, trends, etc.)
+4. Suggested follow-up questions
+
+Format as JSON:
+{
+  "category": "...",
+  "expandedQuery": "...",
+  "intent": "...",
+  "followUpQuestions": ["...", "..."]
+}`;
+
+      const analysisResponse = await this.aiClient.chat.completions.create({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          { role: "system", content: "You are a search optimization specialist. Respond only with valid JSON." },
+          { role: "user", content: queryAnalysisPrompt }
+        ],
+        temperature: 0.2,
+        max_tokens: 300
+      });
+
+      const searchAnalysis = JSON.parse(analysisResponse.choices[0].message.content);
+      
+      // Search news with optimized parameters
+      const searchResults = await this.getNews(searchAnalysis.category, searchAnalysis.expandedQuery);
+      
+      return `🔍 **Intelligent News Search Results**
+
+**Your Query:** "${query}"
+**Search Intent:** ${searchAnalysis.intent}
+
+${searchResults}
+
+**💡 Follow-up Questions:**
+${searchAnalysis.followUpQuestions.map(q => `• ${q}`).join('\n')}`;
+
+    } catch (error) {
+      console.error("Intelligent news search error:", error);
+      // Fallback to basic search
+      return await this.getNews("general", query);
+    }
+  }
+
+  /**
+   * News discussion and explanation
+   * @param {string} topic - Topic to discuss
+   * @returns {Promise<string>} AI-powered discussion
+   */
+  async discussNews(topic) {
+    try {
+      const discussionPrompt = `The user wants to discuss this news topic: "${topic}"
+
+Based on current events and general knowledge, provide:
+1. Background context and why this topic is significant
+2. Different perspectives or viewpoints on the issue
+3. Potential implications and future developments
+4. Questions to help the user think deeper about the topic
+5. Related topics they might find interesting
+
+Make it conversational and educational, encouraging critical thinking.`;
+
+      const response = await this.aiClient.chat.completions.create({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          { role: "system", content: "You are a knowledgeable discussion partner helping users understand and analyze current events." },
+          { role: "user", content: discussionPrompt }
+        ],
+        temperature: 0.5,
+        max_tokens: 800
+      });
+
+      return `🗣️ **News Discussion: ${topic}**\n\n${response.choices[0].message.content}`;
+
+    } catch (error) {
+      return `❌ I'd love to discuss "${topic}" with you, but I'm having trouble accessing my analysis capabilities right now. Could you be more specific about what aspect interests you most?`;
+    }
+  }
+
+  /**
+   * Get news learning insights - what can we learn from current events
+   * @param {string} category - News category
+   * @returns {Promise<string>} Learning insights
+   */
+  async getNewsLearningInsights(category = "general") {
+    try {
+      const news = await this.fetchNewsData(category);
+      if (!news || news.length === 0) {
+        return "❌ No news available for learning insights.";
+      }
+
+      const insightsPrompt = `Analyze these current news stories and extract learning opportunities:
+
+${news.slice(0, 10).map(article => `• ${article.title}: ${article.description}`).join('\n')}
+
+Provide:
+1. Key lessons we can learn from these events
+2. Historical patterns or parallels
+3. Skills or knowledge that would be valuable given these trends
+4. How individuals can prepare or adapt to these developments
+5. Questions these events raise about the future
+
+Focus on actionable insights and personal development opportunities.`;
+
+      const response = await this.aiClient.chat.completions.create({
+        model: "openai/gpt-oss-20b",
+        messages: [
+          { role: "system", content: "You are an educational analyst helping people learn from current events." },
+          { role: "user", content: insightsPrompt }
+        ],
+        temperature: 0.4,
+        max_tokens: 700
+      });
+
+      return `🎓 **Learning Insights from Current Events**\n\n${response.choices[0].message.content}`;
+
+    } catch (error) {
+      return "❌ Error generating learning insights from current events.";
     }
   }
 
