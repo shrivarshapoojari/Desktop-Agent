@@ -1,0 +1,21 @@
+{
+  "name": "desktop-agent",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "electron .",
+    "dev": "electron . --dev"
+  },
+  "keywords": ["electron", "desktop-agent", "ai"],
+  "author": "",
+  "license": "ISC",
+  "description": "A desktop AI agent for daily tasks",
+  "dependencies": {
+    "dotenv": "^17.2.2",
+    "electron": "^38.0.0",
+    "groq-sdk": "^0.32.0",
+    "sqlite3": "^5.1.7"
+  }
+}

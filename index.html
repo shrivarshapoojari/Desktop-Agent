@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Desktop Agent - Your AI Assistant</title>
+    <style>
+      body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        margin: 0; 
+        padding: 20px; 
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        color: #333;
+      }
+      
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 15px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      }
+      
+      h2 { 
+        color: #4a5568; 
+        text-align: center; 
+        margin-bottom: 30px;
+        font-size: 2rem;
+      }
+      
+      .input-container {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      
+      #inputBox { 
+        flex: 1;
+        padding: 15px;
+        font-size: 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        outline: none;
+        transition: border-color 0.3s;
+      }
+      
+      #inputBox:focus {
+        border-color: #667eea;
+      }
+      
+      #sendBtn {
+        padding: 15px 25px;
+        background: #667eea;
+        color: white;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        transition: background 0.3s;
+      }
+      
+      #sendBtn:hover {
+        background: #5a67d8;
+      }
+      
+      #output { 
+        margin-top: 20px; 
+        white-space: pre-wrap; 
+        background: #f7fafc;
+        border-radius: 10px;
+        padding: 20px;
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #e2e8f0;
+      }
+      
+      .examples {
+        margin-top: 20px;
+        background: #edf2f7;
+        padding: 15px;
+        border-radius: 10px;
+      }
+      
+      .examples h3 {
+        margin-top: 0;
+        color: #4a5568;
+      }
+      
+      .examples ul {
+        margin: 10px 0;
+        padding-left: 20px;
+      }
+      
+      .examples li {
+        margin: 5px 0;
+        color: #718096;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>🤖 Desktop Agent</h2>
+      <div class="input-container">
+        <input id="inputBox" type="text" placeholder="Type a command like 'remind me to call mom at 3pm'..." autocomplete="off">
+        <button id="sendBtn">Send</button>
+      </div>
+      
+      <div class="examples">
+        <h3>Try these commands:</h3>
+        <ul>
+          <li>"remind me to take medicine at 8pm"</li>
+          <li>"youtube javascript tutorials"</li>
+          <li>"github awesome python"</li>
+          <li>"wikipedia artificial intelligence"</li>
+          <li>"stackoverflow react hooks error"</li>
+          <li>"search images of sunset"</li>
+          <li>"news about technology"</li>
+          <li>"open calculator"</li>
+        </ul>
+      </div>
+      
+      <div id="output"></div>
+    </div>
+    <script src="renderer.js"></script>
+  </body>
+</html>
