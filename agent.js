@@ -488,8 +488,8 @@ async function parseCommand(command) {
       messages: [
         { 
           role: "system", 
-          content: `You are a desktop AI agent. Parse user commands and respond with JSON containing:
-          - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "unknown"
+          content: `You are a friendly desktop AI agent. Parse user commands and respond with JSON containing:
+          - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "chat"
           - task: description for reminders
           - time: time for reminders (format: "HH:MM" or "today at HH:MM")
           - app: application name for DESKTOP apps only (calculator, notepad, paint, browser, etc.)
@@ -499,8 +499,10 @@ async function parseCommand(command) {
           - website: website shortcut or URL for direct visits
           - info_type: "cpu", "memory", "disk", "processes", "network", "system", "battery", "temp" for system information
           - action_type: "focus_mode", "break_time", "coding_setup", "study_mode", "gaming_mode", "meeting_mode", "cleanup", "shutdown_apps", "work_setup", "social_mode"
+          - message: for casual conversation responses
           
-          IMPORTANT DISTINCTION:
+          IMPORTANT DISTINCTIONS:
+          - Use "chat" for greetings, casual questions, compliments, or general conversation
           - Use "open_app" ONLY for desktop applications like calculator, notepad, paint, browser
           - Use "visit_website" for websites like gfg, leetcode, youtube, netflix, github, amazon, etc.
           - Use "search_web" when user wants to search for something
@@ -508,17 +510,12 @@ async function parseCommand(command) {
           - Use "quick_action" for workflow shortcuts and automation
           
           Examples:
+          "hello" -> {"action": "chat", "message": "Hello! How can I help you today?"}
+          "how are you" -> {"action": "chat", "message": "I'm doing great! Ready to help you with any tasks."}
+          "what can you do" -> {"action": "chat", "message": "I can help you with productivity, system monitoring, web searches, and much more!"}
+          "thank you" -> {"action": "chat", "message": "You're welcome! Happy to help anytime."}
+          "good morning" -> {"action": "chat", "message": "Good morning! Hope you have a productive day ahead!"}
           "focus mode" -> {"action": "quick_action", "action_type": "focus_mode"}
-          "break time" -> {"action": "quick_action", "action_type": "break_time"}
-          "coding setup" -> {"action": "quick_action", "action_type": "coding_setup"}
-          "study mode" -> {"action": "quick_action", "action_type": "study_mode"}
-          "gaming mode" -> {"action": "quick_action", "action_type": "gaming_mode"}
-          "meeting mode" -> {"action": "quick_action", "action_type": "meeting_mode"}
-          "work setup" -> {"action": "quick_action", "action_type": "work_setup"}
-          "cleanup desktop" -> {"action": "quick_action", "action_type": "cleanup"}
-          "close all apps" -> {"action": "quick_action", "action_type": "shutdown_apps"}
-          "social mode" -> {"action": "quick_action", "action_type": "social_mode"}
-          
           "check cpu usage" -> {"action": "system_info", "info_type": "cpu"}
           "open leetcode" -> {"action": "visit_website", "website": "leetcode"}
           "search for javascript" -> {"action": "search_web", "query": "javascript"}
@@ -526,7 +523,7 @@ async function parseCommand(command) {
         },
         { role: "user", content: command }
       ],
-      temperature: 0.1
+      temperature: 0.3
     });
     
     console.log("AI Response:", res.choices[0].message.content);
@@ -567,6 +564,22 @@ export async function handleCommand(command, callback) {
         callback(`🗑️ Task ${data.task_id} deleted!`);
       } else {
         callback("❌ Please specify which task to delete.");
+      }
+    } else if (data.action === "chat") {
+      // Handle casual conversation
+      if (data.message) {
+        callback(data.message);
+      } else {
+        // Fallback friendly responses
+        const friendlyResponses = [
+          "😊 Hi there! I'm here to help you with tasks, system monitoring, web searches, and more!",
+          "👋 Hello! What can I do for you today?",
+          "🤖 Hey! I'm your desktop assistant. Try asking me to check system status or set up your workspace!",
+          "✨ Hi! I can help you be more productive. Try 'focus mode' or 'check cpu usage'!",
+          "🌟 Hello! I'm here to assist with your daily tasks. What would you like to do?"
+        ];
+        const randomResponse = friendlyResponses[Math.floor(Math.random() * friendlyResponses.length)];
+        callback(randomResponse);
       }
     } else if (data.action === "open_app") {
       if (data.app) {
@@ -884,10 +897,56 @@ export async function handleCommand(command, callback) {
         callback(`⚡ **Quick Actions Available:**\n\n🎯 **Productivity:**\n• "focus mode" - Close distractions, open productivity tools\n• "study mode" - Setup study environment\n• "work setup" - Open work tools (Gmail, Calendar, Drive)\n\n💻 **Development:**\n• "coding setup" - Open VS Code, GitHub, Stack Overflow\n\n🎮 **Entertainment:**\n• "break time" - Open music, close work apps\n• "gaming mode" - Setup gaming environment\n• "social mode" - Open social platforms\n\n💼 **Professional:**\n• "meeting mode" - Close distractions, open meeting tools\n\n🧹 **Maintenance:**\n• "cleanup" - Clear temp files, optimize system\n• "close all apps" - Shutdown unnecessary applications\n\n💡 Try: "focus mode", "coding setup", or "break time"`);
       }
     } else {
-      callback("🤔 I'm not sure how to handle that command yet. Try:\n\n📝 **Tasks:**\n• 'remind me to [task] at [time]'\n• 'show my tasks' / 'clear all tasks'\n\n🔍 **Search:**\n• 'search for [anything]'\n• 'youtube [topic]' / 'wikipedia [topic]'\n• 'github [project]' / 'stackoverflow [problem]'\n\n🌐 **Visit Websites:**\n• 'open gfg' / 'visit leetcode'\n• 'go to youtube' / 'open netflix'\n• 'visit amazon' / 'open gmail'\n\n�️ **System Monitor:**\n• 'check cpu usage' / 'show memory'\n• 'disk space' / 'running processes'\n\n�🚀 **Apps:**\n• 'open calculator' / 'open notepad'");
+      // Friendly fallback for unrecognized commands
+      const helpfulMessages = [
+        "😊 I'd love to help! Here are some things I can do:",
+        "🤖 Not sure about that one, but I can help you with:",
+        "✨ Let me show you what I can do for you:",
+        "🌟 I'm here to assist! Try one of these commands:",
+        "💡 I can help you be more productive! Here are my abilities:"
+      ];
+      
+      const randomIntro = helpfulMessages[Math.floor(Math.random() * helpfulMessages.length)];
+      
+      callback(`${randomIntro}
+
+🎯 **Quick Actions** (Click from sidebar!)
+• "focus mode" - Get in the zone
+• "coding setup" - Open dev tools
+• "break time" - Relax and unwind
+
+🔍 **Smart Search**
+• "search for [anything]"
+• "youtube [topic]" 
+• "visit leetcode"
+
+📝 **Task Management**
+• "remind me to [task] at [time]"
+• "show my tasks"
+
+🖥️ **System Monitoring**
+• "check cpu usage"
+• "show memory usage"
+• "running processes"
+
+� **Just Chat!**
+• Say hello, ask how I'm doing, or just chat casually!
+
+💡 **Tip:** Try clicking any command from the Quick Actions sidebar!`);
     }
   } catch (err) {
     console.error("Command handling error:", err);
-    callback("❌ Sorry, I had trouble understanding that command. Please try again.");
+    
+    // Friendly error messages
+    const errorMessages = [
+      "😅 Oops! I had a little hiccup understanding that. Could you try rephrasing?",
+      "🤔 Hmm, something went wrong on my end. Mind trying that again?",
+      "💫 I got a bit confused there! Could you rephrase your request?",
+      "🔄 Let me try that again - could you repeat your command?",
+      "✨ Sorry about that! I'm still learning. Try asking in a different way!"
+    ];
+    
+    const randomError = errorMessages[Math.floor(Math.random() * errorMessages.length)];
+    callback(randomError);
   }
 }
