@@ -55,7 +55,7 @@ class CommandParser {
    */
   getSystemPrompt() {
     return `You are a desktop AI agent. Parse user commands and respond with JSON containing:
-    - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "chat"
+    - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "weather", "news", "daily_briefing", "weather_activity", "chat"
     - task: description for reminders
     - time: time for reminders (convert to HH:MM format, e.g., "3pm" -> "15:00")
     - task_id: ID for deleting specific tasks
@@ -64,6 +64,9 @@ class CommandParser {
     - website: website shortcut or URL for direct visits
     - info_type: "cpu", "memory", "disk", "processes", "network", "system", "battery", "temp" for system information
     - action_type: "focus_mode", "break_time", "coding_setup", "study_mode", "gaming_mode", "meeting_mode", "cleanup", "shutdown_apps", "work_setup", "social_mode"
+    - location: city/location for weather (optional, will auto-detect if not provided)
+    - category: news category - "general", "technology", "business", "science", "health"
+    - activity: activity type for weather advice - "running", "cycling", "picnic", etc.
     - message: for casual conversation responses
     
     IMPORTANT DISTINCTIONS:
@@ -73,13 +76,20 @@ class CommandParser {
     - Use "search_web" when user wants to search for something
     - Use "system_info" for system monitoring requests
     - Use "quick_action" for workflow shortcuts and automation
+    - Use "weather" for weather information requests
+    - Use "news" for news headlines and updates
+    - Use "daily_briefing" for combined weather and news summary
+    - Use "weather_activity" for activity-specific weather advice
     
     Examples:
     "hello" -> {"action": "chat", "message": "Hello! How can I help you today?"}
     "how are you" -> {"action": "chat", "message": "I'm doing great! Ready to help you with any tasks."}
-    "what can you do" -> {"action": "chat", "message": "I can help you with productivity, system monitoring, web searches, and much more!"}
-    "thank you" -> {"action": "chat", "message": "You're welcome! Happy to help anytime."}
-    "good morning" -> {"action": "chat", "message": "Good morning! Hope you have a productive day ahead!"}
+    "what's the weather" -> {"action": "weather"}
+    "weather in London" -> {"action": "weather", "location": "London"}
+    "show me news" -> {"action": "news"}
+    "tech news" -> {"action": "news", "category": "technology"}
+    "daily briefing" -> {"action": "daily_briefing"}
+    "weather for running" -> {"action": "weather_activity", "activity": "running"}
     "focus mode" -> {"action": "quick_action", "action_type": "focus_mode"}
     "check cpu usage" -> {"action": "system_info", "info_type": "cpu"}
     "remind me to call mom at 3pm" -> {"action": "add_reminder", "task": "call mom", "time": "15:00"}`;
@@ -173,7 +183,7 @@ class CommandParser {
     const validActions = [
       'add_reminder', 'show_tasks', 'clear_tasks', 'delete_task',
       'open_app', 'search_web', 'visit_website', 'system_info',
-      'quick_action', 'chat'
+      'quick_action', 'weather', 'news', 'daily_briefing', 'weather_activity', 'chat'
     ];
 
     return validActions.includes(parsed.action);
@@ -188,6 +198,11 @@ class CommandParser {
     const suggestions = [
       "remind me to call mom at 3pm",
       "show my tasks",
+      "what's the weather",
+      "show me news",
+      "tech news",
+      "daily briefing",
+      "weather for running",
       "check cpu usage",
       "open calculator",
       "search for recipes",

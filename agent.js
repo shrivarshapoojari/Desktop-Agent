@@ -9,6 +9,7 @@ import { systemMonitor } from "./modules/SystemMonitor.js";
 import { quickActions } from "./modules/QuickActions.js";
 import { commandParser } from "./modules/CommandParser.js";
 import { utils } from "./modules/Utils.js";
+import { weatherNewsSystem } from "./modules/WeatherNews.js";
 import { getTasks, deleteTask } from "./db.js";
 import { exec } from "child_process";
 
@@ -108,6 +109,22 @@ class DesktopAgent {
       
       case 'quick_action':
         await this.handleQuickAction(parsedCommand, callback);
+        break;
+      
+      case 'weather':
+        await this.handleWeather(parsedCommand, callback);
+        break;
+      
+      case 'news':
+        await this.handleNews(parsedCommand, callback);
+        break;
+      
+      case 'daily_briefing':
+        await this.handleDailyBriefing(parsedCommand, callback);
+        break;
+      
+      case 'weather_activity':
+        await this.handleWeatherActivity(parsedCommand, callback);
         break;
       
       case 'open_app':
@@ -245,6 +262,75 @@ class DesktopAgent {
       callback(result);
     } catch (error) {
       callback(`❌ Failed to perform ${action_type} action.`);
+    }
+  }
+
+  /**
+   * Handle weather requests
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleWeather(parsedCommand, callback) {
+    const { location } = parsedCommand;
+    
+    try {
+      const weather = await weatherNewsSystem.getWeather(location);
+      callback(weather);
+    } catch (error) {
+      callback("❌ Failed to get weather information.");
+    }
+  }
+
+  /**
+   * Handle news requests
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleNews(parsedCommand, callback) {
+    const { category } = parsedCommand;
+    
+    try {
+      const news = await weatherNewsSystem.getNews(category || "general");
+      callback(news);
+    } catch (error) {
+      callback("❌ Failed to get news information.");
+    }
+  }
+
+  /**
+   * Handle daily briefing requests
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleDailyBriefing(parsedCommand, callback) {
+    const { location, category } = parsedCommand;
+    
+    try {
+      const briefing = await weatherNewsSystem.getDailyBriefing(location, category);
+      callback(briefing);
+    } catch (error) {
+      callback("❌ Failed to generate daily briefing.");
+    }
+  }
+
+  /**
+   * Handle weather activity requests
+   * @param {Object} parsedCommand - Parsed command
+   * @param {Function} callback - Response callback
+   */
+  async handleWeatherActivity(parsedCommand, callback) {
+    const { activity } = parsedCommand;
+    
+    if (!activity) {
+      callback("❌ Please specify an activity (running, cycling, picnic, etc.)");
+      return;
+    }
+
+    try {
+      const weatherAdvice = await weatherNewsSystem.getWeatherForActivity(activity);
+      callback(weatherAdvice);
+    } catch (error) {
+      callback("❌ Failed to get weather advice for activity.");
     }
   }
 
@@ -424,6 +510,15 @@ class DesktopAgent {
 • "delete task [id]" - Remove a specific reminder
 • "clear all tasks" - Remove all reminders
 
+**Weather & News:**
+• "what's the weather" - Current weather (auto-detects location)
+• "weather in [city]" - Weather for specific location
+• "show news" - Latest news headlines
+• "tech news" - Technology news
+• "business news" - Business updates
+• "daily briefing" - Combined weather and news
+• "weather for running" - Activity-specific weather advice
+
 **System Monitoring:**
 • "check cpu usage" - View CPU information
 • "check memory" - View memory usage
@@ -448,7 +543,7 @@ class DesktopAgent {
 **Conversation:**
 • Just chat naturally! I can respond to greetings and casual conversation.
 
-Example: "remind me to call mom at 3pm" or "check cpu usage"`;
+Example: "remind me to call mom at 3pm", "what's the weather", or "show tech news"`;
   }
 }
 
@@ -477,5 +572,6 @@ export {
   systemMonitor,
   quickActions,
   commandParser,
-  utils
+  utils,
+  weatherNewsSystem
 };
