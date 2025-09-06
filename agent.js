@@ -11,25 +11,119 @@ const execAsync = promisify(exec);
 dotenv.config();
 const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-// Reminder notification system
-let reminderInterval = null;
+// Reminder notification system - Efficient Scheduler Approach
+let reminderScheduler = new Map(); // Store scheduled timeouts
 let notificationCallback = null;
-let triggeredReminders = new Set(); // Track already triggered reminders
 
-// Initialize reminder checking
+// Initialize reminder system with scheduler
 export function initializeReminderSystem(callback) {
   notificationCallback = callback;
+  console.log("🔔 Efficient reminder system initialized");
   
-  // Check for due reminders every 30 seconds
-  if (reminderInterval) {
-    clearInterval(reminderInterval);
+  // Load existing tasks and schedule them immediately
+  scheduleExistingReminders();
+}
+
+// Schedule all existing reminders when app starts
+function scheduleExistingReminders() {
+  getTasks((tasks) => {
+    tasks.forEach(task => {
+      scheduleReminder(task);
+    });
+    console.log(`📅 Scheduled ${tasks.length} existing reminders`);
+  });
+}
+
+// Schedule a single reminder - much more efficient than polling
+function scheduleReminder(task) {
+  const now = new Date();
+  const [hours, minutes] = task.time.split(':').map(Number);
+  
+  // Create target time for today
+  const targetTime = new Date();
+  targetTime.setHours(hours, minutes, 0, 0);
+  
+  // If the time has already passed today, skip it (it's in the past)
+  if (targetTime <= now) {
+    console.log(`⏰ Reminder for "${task.description}" at ${task.time} has already passed today`);
+    return;
   }
   
-  reminderInterval = setInterval(checkDueReminders, 30000);
-  console.log("Reminder system initialized");
+  const timeUntilReminder = targetTime.getTime() - now.getTime();
   
-  // Also check immediately
-  setTimeout(checkDueReminders, 2000);
+  console.log(`⏳ Scheduling reminder "${task.description}" in ${Math.round(timeUntilReminder / 1000 / 60)} minutes`);
+  
+  // Schedule the reminder with setTimeout (much more efficient!)
+  const timeoutId = setTimeout(() => {
+    triggerReminder(task);
+  }, timeUntilReminder);
+  
+  // Store the timeout ID so we can cancel it if needed
+  reminderScheduler.set(task.id, timeoutId);
+}
+
+// Trigger a reminder notification
+function triggerReminder(task) {
+  console.log(`🔔 Triggering reminder: ${task.description} at ${task.time}`);
+  
+  // Send notification to UI
+  if (notificationCallback) {
+    notificationCallback(`🔔 **REMINDER ALERT!** 🔔\n\n📋 **Task:** ${task.description}\n🕐 **Time:** ${task.time}\n\n✅ This task will be automatically removed after this notification\n📝 Use "show my tasks" to see remaining reminders`);
+  }
+  
+  // Show Windows system notification
+  try {
+    notifier.notify({
+      title: '🔔 Desktop Agent Reminder',
+      message: `${task.description} at ${task.time}`,
+      icon: 'https://cdn-icons-png.flaticon.com/512/2693/2693507.png',
+      sound: true,
+      wait: false,
+      timeout: 10,
+      type: 'info'
+    }, (err) => {
+      if (err) {
+        console.log("Notification failed:", err);
+      } else {
+        console.log("✅ Windows system notification sent via node-notifier");
+      }
+    });
+  } catch (error) {
+    console.log("System notification not available");
+  }
+  
+  // Remove the task from database after notification
+  deleteTask(task.id, (deleteResult) => {
+    if (deleteResult) {
+      console.log(`🗑️ Task ${task.id} automatically deleted after reminder notification`);
+    } else {
+      console.log(`❌ Failed to delete task ${task.id} after reminder`);
+    }
+  });
+  
+  // Remove from scheduler
+  reminderScheduler.delete(task.id);
+  
+  console.log(`✅ Reminder completed and removed: ${task.description}`);
+}
+
+// Cancel a scheduled reminder
+export function cancelScheduledReminder(taskId) {
+  if (reminderScheduler.has(taskId)) {
+    clearTimeout(reminderScheduler.get(taskId));
+    reminderScheduler.delete(taskId);
+    console.log(`❌ Cancelled scheduled reminder for task ${taskId}`);
+  }
+}
+
+// Stop reminder system (for cleanup)
+export function stopReminderSystem() {
+  // Clear all scheduled timeouts
+  reminderScheduler.forEach((timeoutId) => {
+    clearTimeout(timeoutId);
+  });
+  reminderScheduler.clear();
+  console.log("🛑 Efficient reminder system stopped and all schedules cleared");
 }
 
 // Check for due reminders
@@ -764,7 +858,17 @@ export async function handleCommand(command, callback) {
       if (data.task && data.time) {
         const parsedTime = parseTimeFormat(data.time);
         if (parsedTime) {
+          // Add to database
           addTask(data.task, parsedTime);
+          
+          // Schedule the reminder immediately using the efficient scheduler
+          const tempTask = { 
+            id: Date.now(), // Temporary ID for scheduling
+            description: data.task, 
+            time: parsedTime 
+          };
+          scheduleReminder(tempTask);
+          
           callback(`✅ Reminder set: "${data.task}" at ${parsedTime}`);
         } else {
           callback("❌ Invalid time format. Use formats like '3pm', '15:30', '2:30pm', etc.");
