@@ -191,31 +191,32 @@ ANALYSIS REQUIREMENTS:
 7. GLOBAL PERSPECTIVE: Consider diverse viewpoints from different regions
 
 OUTPUT FORMAT:
-🧠 **AI-Curated Global News Analysis**
+📰 **Global News Update**
 
-**Key Insights:**
-[Provide 2-3 key insights about current events and trends]
+🔍 **What's Happening Today:**
+[Write 2-3 compelling insights about current events in natural language]
 
-**Top Stories (Ranked by Relevance):**
+**📌 Today's Important Stories:**
 
-**1. [Title] (Relevance: X/10) - Source: [Source]**
-📝 **Analysis:** [AI insight about why this matters]
-🔗 **Impact:** [Who this affects and how]
-🎯 **Personal Relevance:** [Why this might interest the user]
-📊 **Context:** [Background or connection to other events]
+**🌟 [Clean, engaging title without technical jargon]**
+[Write a natural, engaging summary of why this story matters to people. Focus on impact and significance rather than technical details.]
 
-[Continue for top 5 stories...]
+**🌟 [Next story title]**
+[Continue with engaging summaries...]
 
-**Trend Analysis:**
-[Identify patterns or emerging themes across the stories]
+[Include 4-5 stories maximum]
 
-**Global Perspective:**
-[Note different regional viewpoints or coverage angles]
+**💡 What This Means:**
+[Natural language explanation of trends and patterns without using words like "analysis" or "scoring"]
 
-**Follow-up Suggestions:**
-[Suggest related topics or questions the user might want to explore]
+**🌍 Around the World:**
+[Brief note about different perspectives or regional angles if relevant]
 
-Make the analysis conversational, insightful, and tailored to the user's interests while highlighting the diversity of sources.`;
+**Questions to Consider:**
+• [Thought-provoking question about the stories]
+• [Another engaging question]
+
+Write in a conversational, engaging tone as if you're a knowledgeable friend sharing interesting news. Avoid technical terms like "relevance scoring", "analysis", or "curation". Make it feel natural and compelling.`;
   }
 
   /**
@@ -227,21 +228,34 @@ Make the analysis conversational, insightful, and tailored to the user's interes
   formatIntelligentNews(aiAnalysis, category) {
     const timestamp = new Date().toLocaleTimeString();
     
-    return `${aiAnalysis}
+    // Convert markdown-style formatting to clean, readable text
+    let formatted = aiAnalysis
+      .replace(/###\s*/g, '')  // Remove ### headers
+      .replace(/##\s*/g, '')   // Remove ## headers
+      .replace(/\*\*(.*?)\*\*/g, '$1')  // Remove bold markdown but keep text
+      .replace(/\*(.*?)\*/g, '$1')      // Remove italic markdown
+      .replace(/^\s*[\-\*\+]\s+/gm, '• ')  // Convert markdown bullets to bullet points
+      .replace(/^\s*\d+\.\s+/gm, '• ')     // Convert numbered lists to bullets
+      .trim();
 
----
-📊 **Analysis Summary:**
-• Content analyzed by AI for relevance and significance
-• Personalized based on your interests and reading patterns
-• Category: ${category.charAt(0).toUpperCase() + category.slice(1)}
+    // Clean up excessive line breaks and ensure proper spacing
+    formatted = formatted
+      .replace(/\n{3,}/g, '\n\n')  // Max 2 line breaks
+      .replace(/\n\s*\n/g, '\n\n') // Clean up whitespace
+      .trim();
 
-*Last analyzed: ${timestamp}*
+    // Add elegant footer without technical jargon
+    const categoryDisplay = category === 'india' ? 'Indian' : 
+                           category.charAt(0).toUpperCase() + category.slice(1);
 
-💡 **Want to explore further?** Ask me:
-• "Tell me more about [story title]"
-• "What's the impact of [event]?"
-• "Show me related news about [topic]"
-• "Explain why this matters"`;
+    return `${formatted}
+
+────────────────────────────────
+
+📱 ${categoryDisplay} news • Updated ${timestamp}
+
+� Want to explore more? Just ask:
+"Tell me more about [any story]" or "What else is happening?"`;
   }
 
   /**
@@ -648,34 +662,40 @@ Keep it brief and helpful.`;
   }
 
   /**
-   * Format news data for display
+   * Format news data for display (fallback method)
    * @param {Array} newsData - Raw news data
    * @returns {string} Formatted news information
    */
   formatNewsData(newsData) {
     try {
       if (!newsData || newsData.length === 0) {
-        return "❌ No news articles available";
+        return "No news articles available at the moment. Please try again later.";
       }
 
-      let formatted = "📰 **Latest News Headlines**\n\n";
+      let formatted = "📰 Latest Headlines\n\n";
       
-      // Show top 5 articles
-      const topArticles = newsData.slice(0, 5);
+      // Show top 6 articles in a clean format
+      const topArticles = newsData.slice(0, 6);
       
       topArticles.forEach((article, index) => {
-        formatted += `**${index + 1}.** ${article.title}\n`;
-        if (article.description) {
-          formatted += `   📝 ${article.description.substring(0, 100)}...\n`;
+        const sourceInfo = article.source ? ` • ${article.source}` : '';
+        formatted += `🔸 ${article.title}${sourceInfo}\n`;
+        
+        if (article.description && article.description.length > 10) {
+          const shortDesc = article.description.length > 120 ? 
+            article.description.substring(0, 120) + '...' : 
+            article.description;
+          formatted += `   ${shortDesc}\n`;
         }
-        formatted += `   🔗 ${article.link}\n\n`;
+        formatted += '\n';
       });
 
-      formatted += `*Last updated: ${new Date().toLocaleTimeString()}*`;
+      const timestamp = new Date().toLocaleTimeString();
+      formatted += `────────────────────────────────\n\n📱 Updated ${timestamp} • Ask me to discuss any story!`;
       
       return formatted;
     } catch (error) {
-      return "❌ Error formatting news data";
+      return "Unable to format news at the moment. Please try again.";
     }
   }
 
@@ -944,30 +964,65 @@ ${searchAnalysis.followUpQuestions.map(q => `• ${q}`).join('\n')}`;
     try {
       const discussionPrompt = `The user wants to discuss this news topic: "${topic}"
 
-Based on current events and general knowledge, provide:
-1. Background context and why this topic is significant
-2. Different perspectives or viewpoints on the issue
-3. Potential implications and future developments
-4. Questions to help the user think deeper about the topic
-5. Related topics they might find interesting
+Provide a friendly, conversational discussion about this topic as if you're talking to a friend who's curious about current events.
 
-Make it conversational and educational, encouraging critical thinking.`;
+Structure your response naturally:
+1. Start with a brief, engaging introduction
+2. Explain the background and why it matters
+3. Share current developments
+4. Mention different viewpoints if relevant
+5. Discuss what it might mean going forward
+6. End with engaging questions or thoughts
+
+Format Requirements:
+- Write in a natural, conversational tone
+- Use simple paragraphs without technical formatting
+- Avoid markdown syntax like **, ##, ###
+- Use emojis sparingly and naturally
+- Keep it engaging and easy to read
+- Don't use words like "analysis" or "insights" - just have a conversation
+
+Make it feel like a knowledgeable friend explaining something interesting over coffee.`;
 
       const response = await this.aiClient.chat.completions.create({
         model: "openai/gpt-oss-20b",
         messages: [
-          { role: "system", content: "You are a knowledgeable discussion partner helping users understand and analyze current events." },
+          { role: "system", content: "You are a friendly, knowledgeable person having a casual conversation about current events. Write naturally without technical formatting or jargon." },
           { role: "user", content: discussionPrompt }
         ],
-        temperature: 0.5,
-        max_tokens: 800
+        temperature: 0.6,
+        max_tokens: 1000
       });
 
-      return `🗣️ **News Discussion: ${topic}**\n\n${response.choices[0].message.content}`;
+      const formattedResponse = this.formatDiscussionResponse(response.choices[0].message.content, topic);
+      return formattedResponse;
 
     } catch (error) {
-      return `❌ I'd love to discuss "${topic}" with you, but I'm having trouble accessing my analysis capabilities right now. Could you be more specific about what aspect interests you most?`;
+      return `I'd love to chat about "${topic}" with you! Unfortunately, I'm having some technical difficulties right now. Could you tell me what specific aspect interests you most? I can try to share what I know about it.`;
     }
+  }
+
+  /**
+   * Format discussion response for better readability
+   * @param {string} aiResponse - Raw AI response
+   * @param {string} topic - Discussion topic
+   * @returns {string} Formatted response
+   */
+  formatDiscussionResponse(aiResponse, topic) {
+    // Clean up markdown and technical formatting
+    let formatted = aiResponse
+      .replace(/###\s*/g, '')
+      .replace(/##\s*/g, '')
+      .replace(/\*\*(.*?)\*\*/g, '$1')
+      .replace(/\*(.*?)\*/g, '$1')
+      .replace(/^\s*[\-\*\+]\s+/gm, '• ')
+      .trim();
+
+    // Add natural header and footer
+    const header = `� Let's talk about: ${topic}\n\n`;
+    const footer = `\n\n────────────────────────────────\n\n🤔 What do you think about this? Feel free to ask me anything else about ${topic} or request related news!`;
+
+    return header + formatted + footer;
   }
 
   /**
