@@ -1,6 +1,6 @@
 /**
  * Modular Desktop Agent
- * A comprehensive agent that brings together all modules for scalable architecture
+ * Main orchestrator that brings together all modules for scalable architecture
  */
 
 // Import all modules
@@ -10,7 +10,6 @@ import { quickActions } from "./modules/QuickActions.js";
 import { commandParser } from "./modules/CommandParser.js";
 import { utils } from "./modules/Utils.js";
 import { informationService } from "./modules/InformationService.js";
-import { ScreenAnalyzer } from "./modules/ScreenAnalyzer/ScreenAnalyzer.js";
 import { getTasks, deleteTask } from "./db.js";
 import { exec } from "child_process";
 
@@ -21,13 +20,11 @@ import { exec } from "child_process";
 class DesktopAgent {
   constructor() {
     this.isInitialized = false;
-    this.screenAnalyzer = null;
     this.stats = {
       commandsProcessed: 0,
       remindersTriggered: 0,
       systemQueriesHandled: 0,
       quickActionsPerformed: 0,
-      screenAnalysisPerformed: 0,
       startTime: new Date()
     };
   }
@@ -47,15 +44,11 @@ class DesktopAgent {
     // Initialize reminder system
     reminderSystem.initialize(notificationCallback);
 
-    // Initialize screen analyzer
-    this.screenAnalyzer = new ScreenAnalyzer();
-
     // Set initialization flag
     this.isInitialized = true;
 
     console.log("✅ Modular Desktop Agent initialized successfully!");
-    console.log("🖥️ Screen Analysis capabilities enabled!");
-    console.log("📊 Available modules: ReminderSystem, SystemMonitor, QuickActions, CommandParser, Utils, InformationService, ScreenAnalyzer");
+    console.log("📊 Available modules: ReminderSystem, SystemMonitor, QuickActions, CommandParser, Utils, InformationService");
   }
 
   /**
@@ -166,15 +159,8 @@ class DesktopAgent {
         this.handleVisitWebsite(parsedCommand, callback);
         break;
       
-      case 'screen_analysis':
-      case 'analyze_screen':
-      case 'see_screen':
-      case 'what_on_screen':
-        await this.handleScreenAnalysis(parsedCommand, callback);
-        break;
-      
       case 'chat':
-        await this.handleChat(parsedCommand, callback);
+        this.handleChat(parsedCommand, callback);
         break;
       
       default:
@@ -546,63 +532,6 @@ class DesktopAgent {
         callback(`🌐 Opening ${website}...`);
       }
     });
-  }
-
-  /**
-   * Handle screen analysis commands
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleScreenAnalysis(parsedCommand, callback) {
-    try {
-      this.stats.screenAnalysisPerformed++;
-      
-      if (!this.screenAnalyzer) {
-        callback("❌ Screen analysis not available. Please restart the application.");
-        return;
-      }
-
-      const { query, message } = parsedCommand;
-      const analysisQuery = query || message || "What's on my screen?";
-      
-      callback("🔍 Analyzing your screen... This may take a moment.");
-      
-      // Perform screen analysis
-      const result = await this.screenAnalyzer.analyzeScreen(analysisQuery);
-      
-      if (result.success) {
-        // Find VisionAgent result in workflow results
-        const visionResult = result.results?.find(r => r.agent === 'VisionAgent')?.result;
-        
-        if (visionResult?.analysis?.description) {
-          const description = visionResult.analysis.description;
-          const elements = visionResult.analysis.elements || [];
-          
-          let response = `🖥️ **Screen Analysis:**\n\n${description}`;
-          
-          if (elements.length > 0) {
-            response += `\n\n🎯 **Detected Elements:**\n`;
-            elements.slice(0, 5).forEach((elem, i) => {
-              response += `${i + 1}. ${elem.type || 'Element'}: "${elem.text || elem.description}"\n`;
-            });
-            
-            if (elements.length > 5) {
-              response += `... and ${elements.length - 5} more elements`;
-            }
-          }
-          
-          callback(response);
-        } else {
-          callback("🖥️ Screen captured successfully, but AI analysis is still processing. The vision system is working!");
-        }
-      } else {
-        callback("❌ Failed to analyze screen. Please try again.");
-      }
-      
-    } catch (error) {
-      console.error("Screen analysis error:", error);
-      callback("❌ Screen analysis encountered an error. Please try again.");
-    }
   }
 
   /**
