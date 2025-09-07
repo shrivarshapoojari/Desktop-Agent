@@ -55,12 +55,12 @@ class CommandParser {
    */
   getSystemPrompt() {
     return `You are a desktop AI agent. Parse user commands and respond with JSON containing:
-    - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "weather", "news", "news_search", "news_discuss", "news_insights", "news_recommendations", "news_sentiment", "daily_briefing", "weather_activity", "chat"
+    - action: "add_reminder", "show_tasks", "clear_tasks", "delete_task", "open_app", "search_web", "visit_website", "system_info", "quick_action", "weather", "news", "news_search", "news_discuss", "news_insights", "news_recommendations", "news_sentiment", "daily_briefing", "weather_activity", "screen_analysis", "analyze_screen", "see_screen", "what_on_screen", "chat"
     - task: description for reminders
     - time: time for reminders (convert to HH:MM format, e.g., "3pm" -> "15:00")
     - task_id: ID for deleting specific tasks
     - app: application name for opening apps
-    - query: search query for web searches or news searches
+    - query: search query for web searches, news searches, or screen analysis
     - website: website shortcut or URL for direct visits
     - info_type: "cpu", "memory", "disk", "processes", "network", "system", "battery", "temp" for system information
     - action_type: "focus_mode", "break_time", "coding_setup", "study_mode", "gaming_mode", "meeting_mode", "cleanup", "shutdown_apps", "work_setup", "social_mode"
@@ -68,10 +68,11 @@ class CommandParser {
     - category: news category - "general", "technology", "business", "science", "health", "india"
     - topic: topic for news discussion
     - activity: activity type for weather advice - "running", "cycling", "picnic", etc.
-    - message: for casual conversation responses
+    - message: for casual conversation responses or screen analysis queries
     
     IMPORTANT DISTINCTIONS:
     - Use "chat" for greetings, casual questions, compliments, or general conversation
+    - Use "screen_analysis"/"analyze_screen"/"see_screen"/"what_on_screen" for screen analysis requests like "what's on my screen?", "analyze my screen", "see what's displayed", "click the blue button", "find all buttons", "extract text from screen"
     - Use "open_app" ONLY for desktop applications like calculator, notepad, paint, browser
     - Use "visit_website" for websites like gfg, leetcode, youtube, netflix, github, amazon, etc.
     - Use "search_web" when user wants to search for something on the web
@@ -90,6 +91,14 @@ class CommandParser {
     Examples:
     "hello" -> {"action": "chat", "message": "Hello! How can I help you today?"}
     "how are you" -> {"action": "chat", "message": "I'm doing great! Ready to help you with any tasks."}
+    "what's on my screen?" -> {"action": "screen_analysis", "query": "what's on my screen?"}
+    "analyze my screen" -> {"action": "screen_analysis", "query": "analyze my screen"}
+    "can you see my screen?" -> {"action": "screen_analysis", "query": "can you see my screen?"}
+    "what is on the screen?" -> {"action": "screen_analysis", "query": "what is on the screen?"}
+    "describe what's displayed" -> {"action": "screen_analysis", "query": "describe what's displayed"}
+    "find all buttons on screen" -> {"action": "screen_analysis", "query": "find all buttons on screen"}
+    "click the blue button" -> {"action": "screen_analysis", "query": "click the blue button"}
+    "extract text from screen" -> {"action": "screen_analysis", "query": "extract text from screen"}
     "what's the weather" -> {"action": "weather"}
     "weather in London" -> {"action": "weather", "location": "London"}
     "show me news" -> {"action": "news"}
@@ -198,7 +207,8 @@ class CommandParser {
       'open_app', 'search_web', 'visit_website', 'system_info',
       'quick_action', 'weather', 'news', 'news_search', 'news_discuss', 
       'news_insights', 'news_recommendations', 'news_sentiment',
-      'daily_briefing', 'weather_activity', 'chat'
+      'daily_briefing', 'weather_activity', 'screen_analysis', 
+      'analyze_screen', 'see_screen', 'what_on_screen', 'chat'
     ];
 
     return validActions.includes(parsed.action);
