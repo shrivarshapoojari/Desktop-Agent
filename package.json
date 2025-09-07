@@ -17,9 +17,14 @@
   "license": "ISC",
   "description": "A desktop AI agent for daily tasks",
   "dependencies": {
+    "@langchain/core": "^0.3.75",
+    "@langchain/openai": "^0.6.11",
+    "axios": "^1.11.0",
     "dotenv": "^17.2.2",
     "electron": "^38.0.0",
     "groq-sdk": "^0.32.0",
+    "langchain": "^0.3.33",
+    "newsapi": "^2.4.1",
     "node-notifier": "^10.0.1",
     "sqlite3": "^5.1.7"
   }

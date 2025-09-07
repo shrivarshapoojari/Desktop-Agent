@@ -9,7 +9,6 @@ import { systemMonitor } from "./modules/SystemMonitor.js";
 import { quickActions } from "./modules/QuickActions.js";
 import { commandParser } from "./modules/CommandParser.js";
 import { utils } from "./modules/Utils.js";
-import { informationService } from "./modules/InformationService.js";
 import { getTasks, deleteTask } from "./db.js";
 import { exec } from "child_process";
 
@@ -48,7 +47,7 @@ class DesktopAgent {
     this.isInitialized = true;
 
     console.log("✅ Modular Desktop Agent initialized successfully!");
-    console.log("📊 Available modules: ReminderSystem, SystemMonitor, QuickActions, CommandParser, Utils, InformationService");
+    console.log("📊 Available modules: ReminderSystem, SystemMonitor, QuickActions, CommandParser, Utils");
   }
 
   /**
@@ -109,42 +108,6 @@ class DesktopAgent {
       
       case 'quick_action':
         await this.handleQuickAction(parsedCommand, callback);
-        break;
-      
-      case 'weather':
-        await this.handleWeather(parsedCommand, callback);
-        break;
-      
-      case 'news':
-        await this.handleNews(parsedCommand, callback);
-        break;
-      
-      case 'news_search':
-        await this.handleNewsSearch(parsedCommand, callback);
-        break;
-      
-      case 'news_discuss':
-        await this.handleNewsDiscussion(parsedCommand, callback);
-        break;
-      
-      case 'news_insights':
-        await this.handleNewsInsights(parsedCommand, callback);
-        break;
-      
-      case 'news_recommendations':
-        await this.handleNewsRecommendations(parsedCommand, callback);
-        break;
-      
-      case 'news_sentiment':
-        await this.handleNewsSentiment(parsedCommand, callback);
-        break;
-      
-      case 'daily_briefing':
-        await this.handleDailyBriefing(parsedCommand, callback);
-        break;
-      
-      case 'weather_activity':
-        await this.handleWeatherActivity(parsedCommand, callback);
         break;
       
       case 'open_app':
@@ -282,165 +245,6 @@ class DesktopAgent {
       callback(result);
     } catch (error) {
       callback(`❌ Failed to perform ${action_type} action.`);
-    }
-  }
-
-  /**
-   * Handle weather requests
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleWeather(parsedCommand, callback) {
-    const { location } = parsedCommand;
-    
-    try {
-      const weather = await informationService.getWeather(location);
-      callback(weather);
-    } catch (error) {
-      callback("❌ Failed to get weather information.");
-    }
-  }
-
-  /**
-   * Handle news requests with AI-powered analysis
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleNews(parsedCommand, callback) {
-    const { category, query } = parsedCommand;
-    
-    try {
-      const news = await informationService.getNews(category || "general", query);
-      callback(news);
-    } catch (error) {
-      callback("❌ Failed to get intelligent news analysis.");
-    }
-  }
-
-  /**
-   * Handle intelligent news search
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleNewsSearch(parsedCommand, callback) {
-    const { query } = parsedCommand;
-    
-    if (!query) {
-      callback("❌ Please specify what news topic you'd like to search for.");
-      return;
-    }
-
-    try {
-      const searchResults = await informationService.searchNews(query);
-      callback(searchResults);
-    } catch (error) {
-      callback("❌ Failed to perform intelligent news search.");
-    }
-  }
-
-  /**
-   * Handle news discussion
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleNewsDiscussion(parsedCommand, callback) {
-    const { topic } = parsedCommand;
-    
-    if (!topic) {
-      callback("❌ Please specify what news topic you'd like to discuss.");
-      return;
-    }
-
-    try {
-      const discussion = await informationService.discussTopic(topic);
-      callback(discussion);
-    } catch (error) {
-      callback("❌ Failed to start topic discussion.");
-    }
-  }
-
-  /**
-   * Handle news insights and trends
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleNewsInsights(parsedCommand, callback) {
-    const { category } = parsedCommand;
-    
-    try {
-      const insights = await informationService.getTrendInsights(category || "general");
-      callback(insights);
-    } catch (error) {
-      callback("❌ Failed to generate trend insights.");
-    }
-  }
-
-  /**
-   * Handle personalized news recommendations
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleNewsRecommendations(parsedCommand, callback) {
-    try {
-      const recommendations = await informationService.getNewsRecommendations();
-      callback(recommendations);
-    } catch (error) {
-      callback("❌ Failed to generate personalized recommendations.");
-    }
-  }
-
-  /**
-   * Handle news sentiment analysis (legacy support)
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleNewsSentiment(parsedCommand, callback) {
-    const { category } = parsedCommand;
-    
-    try {
-      // For now, redirect to trend insights which includes sentiment analysis
-      const insights = await informationService.getTrendInsights(category || "general");
-      callback(insights);
-    } catch (error) {
-      callback("❌ Failed to analyze news sentiment.");
-    }
-  }
-
-  /**
-   * Handle daily briefing requests
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleDailyBriefing(parsedCommand, callback) {
-    const { location, category } = parsedCommand;
-    
-    try {
-      const briefing = await informationService.getDailyBriefing(location, category);
-      callback(briefing);
-    } catch (error) {
-      callback("❌ Failed to generate daily briefing.");
-    }
-  }
-
-  /**
-   * Handle weather activity requests
-   * @param {Object} parsedCommand - Parsed command
-   * @param {Function} callback - Response callback
-   */
-  async handleWeatherActivity(parsedCommand, callback) {
-    const { activity, location } = parsedCommand;
-    
-    if (!activity) {
-      callback("❌ Please specify an activity to check weather suitability for.");
-      return;
-    }
-
-    try {
-      // Get weather forecast for activity planning
-      const forecast = await informationService.getWeatherForecast(location, 3);
-      callback(`🌤️ **Weather Forecast for ${activity}**\n\n${forecast}\n\n💡 Plan accordingly for your ${activity}!`);
-    } catch (error) {
-      callback("❌ Failed to get weather activity information.");
     }
   }
 
@@ -620,21 +424,6 @@ class DesktopAgent {
 • "delete task [id]" - Remove a specific reminder
 • "clear all tasks" - Remove all reminders
 
-**Weather & News:**
-• "what's the weather" - Current weather (auto-detects location)
-• "weather in [city]" - Weather for specific location
-• "show news" - AI-curated global news headlines
-• "india news" - Latest news from Indian sources
-• "tech news" - Technology news with analysis
-• "business news" - Business updates with insights
-• "search news about [topic]" - Intelligent news search
-• "discuss [news topic]" - Deep dive into news topics
-• "recommend news for me" - Personalized news suggestions
-• "what can I learn from current events" - Learning insights
-• "how is the news mood today" - Sentiment analysis
-• "daily briefing" - Combined weather and news with AI insights
-• "weather for running" - Activity-specific weather advice
-
 **System Monitoring:**
 • "check cpu usage" - View CPU information
 • "check memory" - View memory usage
@@ -659,7 +448,7 @@ class DesktopAgent {
 **Conversation:**
 • Just chat naturally! I can respond to greetings and casual conversation.
 
-Example: "remind me to call mom at 3pm", "what's the weather", or "show tech news"`;
+Example: "remind me to call mom at 3pm" or "check cpu usage"`;
   }
 }
 
@@ -688,6 +477,5 @@ export {
   systemMonitor,
   quickActions,
   commandParser,
-  utils,
-  informationService
+  utils
 };
